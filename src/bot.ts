@@ -144,9 +144,37 @@ class TradersMindBot {
   }
 
   private async shutdown(): Promise<void> {
-    console.log('🛑 Shutting down services...');
-    this.messageRetention.stopCleanupScheduler();
+    console.log('🛑 Initiating graceful shutdown...');
+    
+    try {
+      // Stop background schedulers first
+      console.log('🛑 Stopping background schedulers...');
+      this.messageRetention.stopCleanupScheduler();
+      
+      // Perform final cleanup with timeout
+      console.log('🛑 Performing final cleanup...');
+      const cleanupPromise = Promise.all([
+        this.messageRetention.performFinalCleanup(),
+        Promise.resolve(this.ephemeralHandler.performFinalCleanup())
+      ]);
+      
+      // Add 5-second timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Cleanup timeout')), 5000);
+      });
+      
+      await Promise.race([cleanupPromise, timeoutPromise]);
+      
+      console.log('✅ Graceful shutdown complete');
+      
+    } catch (error) {
+      console.error('⚠️ Error during graceful shutdown:', error);
+      console.log('🛑 Proceeding with forced shutdown...');
+    }
+    
+    // Destroy Discord client and exit
     await this.client.destroy();
+    console.log('👋 Bot shutdown complete');
     process.exit(0);
   }
 

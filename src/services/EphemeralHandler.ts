@@ -190,4 +190,17 @@ export class EphemeralHandler {
       totalTracked: this.ephemeralTracking.size
     };
   }
+
+  public performFinalCleanup(): void {
+    console.log('🧹 Performing final ephemeral cleanup before shutdown...');
+    
+    const startTime = Date.now();
+    const totalTracked = this.ephemeralTracking.size;
+    
+    // Clear all ephemeral interactions
+    this.ephemeralTracking.clear();
+    
+    const duration = Date.now() - startTime;
+    console.log(`✅ Ephemeral final cleanup complete: ${totalTracked} interactions cleared (${duration}ms)`);
+  }
 }

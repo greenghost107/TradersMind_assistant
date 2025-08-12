@@ -239,4 +239,57 @@ export class MessageRetention {
   public removeRetentionJob(messageId: string): void {
     this.retentionJobs.delete(messageId);
   }
+
+  public async performFinalCleanup(): Promise<void> {
+    console.log('🧹 Performing final cleanup before shutdown...');
+    
+    if (!this.client || !this.config) {
+      console.log('⚠️ MessageRetention not properly initialized for final cleanup');
+      return;
+    }
+
+    const startTime = Date.now();
+    let totalDeleted = 0;
+    let totalErrors = 0;
+
+    try {
+      // Process all pending retention jobs immediately
+      const expiredJobs: RetentionJob[] = [];
+      
+      for (const [messageId, job] of this.retentionJobs.entries()) {
+        expiredJobs.push(job);
+        this.retentionJobs.delete(messageId);
+      }
+
+      console.log(`🧹 Processing ${expiredJobs.length} pending retention jobs...`);
+
+      // Delete messages from retention jobs
+      for (const job of expiredJobs) {
+        try {
+          const channel = this.client.channels.cache.get(job.channelId) as TextChannel;
+          if (!channel) continue;
+
+          const message = await channel.messages.fetch(job.messageId);
+          if (message && message.author.id === this.client.user?.id) {
+            await message.delete();
+            totalDeleted++;
+          }
+        } catch (error: any) {
+          if (error.code !== 10008) { // Ignore "message not found"
+            totalErrors++;
+          }
+        }
+      }
+
+      // Perform final bot message cleanup
+      await this.cleanupBotMessages();
+
+    } catch (error) {
+      console.error('❌ Error during final cleanup:', error);
+      totalErrors++;
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Final cleanup complete: ${totalDeleted} messages deleted, ${totalErrors} errors (${duration}ms)`);
+  }
 }
