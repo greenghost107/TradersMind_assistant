@@ -11,6 +11,7 @@ import { StockSymbol, EphemeralInteraction } from '../types';
 import { AnalysisLinker } from './AnalysisLinker';
 import { MessageRetention } from './MessageRetention';
 import { MAX_DISCORD_BUTTONS } from '../config';
+import { Logger } from '../utils/Logger';
 
 export class EphemeralHandler {
   private ephemeralTracking: Map<string, EphemeralInteraction> = new Map();
@@ -26,7 +27,18 @@ export class EphemeralHandler {
     message: Message, 
     symbols: StockSymbol[]
   ): Promise<void> {
-    const limitedSymbols = symbols.slice(0, MAX_DISCORD_BUTTONS);
+    const symbolsWithAnalysis = symbols.filter(symbol => 
+      this.analysisLinker.hasAnalysisFor(symbol.symbol)
+    );
+    
+    if (symbolsWithAnalysis.length === 0) {
+      Logger.debug(`No symbols with available analysis data found in message ${message.id}`);
+      return;
+    }
+    
+    Logger.debug(`Filtered ${symbols.length} symbols down to ${symbolsWithAnalysis.length} symbols with analysis data`);
+    
+    const limitedSymbols = symbolsWithAnalysis.slice(0, MAX_DISCORD_BUTTONS);
     const rows: ActionRowBuilder<ButtonBuilder>[] = [];
     
     let currentRow = new ActionRowBuilder<ButtonBuilder>();
@@ -63,7 +75,7 @@ export class EphemeralHandler {
         this.messageRetention.addMessageForRetention(botMessage);
       }
     } catch (error) {
-      console.error('Failed to send symbol buttons:', error);
+      Logger.error('Failed to send symbol buttons:', error);
     }
   }
 
@@ -81,6 +93,8 @@ export class EphemeralHandler {
       return;
     }
 
+    Logger.interaction(`Button clicked: ${symbol} by ${interaction.user.tag}`);
+
     try {
       await interaction.deferReply({ ephemeral: true });
 
@@ -92,7 +106,7 @@ export class EphemeralHandler {
         symbols: [symbol]
       });
 
-      const analyses = await this.analysisLinker.getLatestAnalysis(symbol, 3);
+      const analyses = await this.analysisLinker.getLatestAnalysis(symbol, 1);
       const latestUrl = this.analysisLinker.getLatestAnalysisUrl(symbol);
 
       if (analyses.length === 0) {
@@ -102,8 +116,14 @@ export class EphemeralHandler {
         return;
       }
 
+      // Get the latest analysis (first item)
+      const latestAnalysis = analyses[0]!;
+      const timeAgo = this.getTimeAgo(latestAnalysis.timestamp);
+      const channel = interaction.client.channels.cache.get(latestAnalysis.channelId);
+      const channelName = channel ? `#${(channel as any).name}` : 'Unknown Channel';
+
       const embed = new EmbedBuilder()
-        .setTitle(`📊 Analysis for $${symbol}`)
+        .setTitle(`📊 Latest Analysis for $${symbol}`)
         .setColor(Colors.Green)
         .setTimestamp();
 
@@ -112,30 +132,35 @@ export class EphemeralHandler {
         embed.setURL(latestUrl);
       }
 
-      let description = '';
-      
-      for (let i = 0; i < analyses.length; i++) {
-        const analysis = analyses[i]!;
-        const timeAgo = this.getTimeAgo(analysis.timestamp);
-        const channel = interaction.client.channels.cache.get(analysis.channelId);
-        const channelName = channel ? `#${(channel as any).name}` : 'Unknown Channel';
-        
-        const previewContent = analysis.content.length > 150 
-          ? analysis.content.substring(0, 150) + '...'
-          : analysis.content;
+      // Create a short preview of the analysis content (max ~200 characters)
+      const shortPreview = latestAnalysis.content.length > 200 
+        ? latestAnalysis.content.substring(0, 200) + '...'
+        : latestAnalysis.content;
 
-        description += `**${i + 1}.** ${channelName} • ${timeAgo}\n`;
-        description += `${previewContent}\n`;
-        const messageUrl = analysis.messageUrl || `https://discord.com/channels/${interaction.guildId}/${analysis.channelId}/${analysis.messageId}`;
-        description += `[View Message](${messageUrl})\n\n`;
-      }
+      let description = `**${channelName}** • ${timeAgo}\n\n${shortPreview}\n\n`;
+      
+      const messageUrl = latestAnalysis.messageUrl || `https://discord.com/channels/${interaction.guildId}/${latestAnalysis.channelId}/${latestAnalysis.messageId}`;
+      description += `[View Original Message](${messageUrl})`;
 
       embed.setDescription(description);
+
+      // Prioritize Discord attachments (chart snapshots) for display
+      let chartImageUrl: string | null = null;
+      
+      if (latestAnalysis.attachmentUrls && latestAnalysis.attachmentUrls.length > 0) {
+        chartImageUrl = latestAnalysis.attachmentUrls[0] || null;
+      } else if (latestAnalysis.chartUrls && latestAnalysis.chartUrls.length > 0) {
+        chartImageUrl = latestAnalysis.chartUrls[0] || null;
+      }
+
+      if (chartImageUrl) {
+        embed.setImage(chartImageUrl);
+      }
 
       await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-      console.error('Error handling button interaction:', error);
+      Logger.error('Error handling button interaction:', error);
       
       const errorMessage = interaction.deferred 
         ? { content: 'An error occurred while fetching analysis data.' }
@@ -181,7 +206,7 @@ export class EphemeralHandler {
     }
 
     if (cleaned > 0) {
-      console.log(`🧹 Cleaned up ${cleaned} expired ephemeral interactions`);
+      Logger.info(`Cleaned up ${cleaned} expired ephemeral interactions`);
     }
   }
 
@@ -192,15 +217,14 @@ export class EphemeralHandler {
   }
 
   public performFinalCleanup(): void {
-    console.log('🧹 Performing final ephemeral cleanup before shutdown...');
+    Logger.info('Performing final ephemeral cleanup before shutdown...');
     
     const startTime = Date.now();
     const totalTracked = this.ephemeralTracking.size;
     
-    // Clear all ephemeral interactions
     this.ephemeralTracking.clear();
     
     const duration = Date.now() - startTime;
-    console.log(`✅ Ephemeral final cleanup complete: ${totalTracked} interactions cleared (${duration}ms)`);
+    Logger.info(`Ephemeral final cleanup complete: ${totalTracked} interactions cleared (${duration}ms)`);
   }
 }

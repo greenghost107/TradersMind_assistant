@@ -7,6 +7,7 @@ import { AnalysisLinker } from './services/AnalysisLinker';
 import { MessageRetention } from './services/MessageRetention';
 import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
+import { Logger } from './utils/Logger';
 
 class TradersMindBot {
   private client: Client;
@@ -39,7 +40,8 @@ class TradersMindBot {
     this.historicalScraper = new HistoricalScraper();
     this.channelScanner = new ChannelScanner(
       this.symbolDetector, 
-      this.ephemeralHandler
+      this.ephemeralHandler,
+      this.analysisLinker
     );
 
     this.setupEventHandlers();
@@ -47,18 +49,15 @@ class TradersMindBot {
 
   private setupEventHandlers(): void {
     this.client.once(Events.ClientReady, async () => {
-      console.log(`✅ ${this.client.user?.tag} is online and ready!`);
+      Logger.botStartup(`${this.client.user?.tag} is online and ready!`);
       
       if (this.config) {
-        console.log(`📊 Monitoring channels:`);
-        console.log(`   Analysis 1: ${this.config.analysisChannels[0]}`);
-        console.log(`   Analysis 2: ${this.config.analysisChannels[1]}`);
-        console.log(`   General: ${this.config.generalNoticesChannel}`);
+        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}`);
         
         await this.initializeBot();
         this.startBackgroundServices();
       } else {
-        console.warn('⚠️ Bot is not configured. Please set the required environment variables.');
+        Logger.warn('Bot is not configured. Please set the required environment variables.');
       }
     });
 
@@ -81,7 +80,7 @@ class TradersMindBot {
           try {
             await command.execute(interaction);
           } catch (error) {
-            console.error('Command execution error:', error);
+            Logger.error('Command execution error:', error);
             const reply = { content: 'An error occurred while executing this command.', ephemeral: true };
             
             if (interaction.replied || interaction.deferred) {
@@ -95,41 +94,37 @@ class TradersMindBot {
     });
 
     this.client.on(Events.Error, (error) => {
-      console.error('Discord client error:', error);
+      Logger.error('Discord client error:', error);
     });
 
     process.on('SIGINT', () => {
-      console.log('Shutting down bot...');
+      Logger.info('Shutting down bot...');
       this.shutdown();
     });
 
     process.on('SIGTERM', () => {
-      console.log('Shutting down bot...');
+      Logger.info('Shutting down bot...');
       this.shutdown();
     });
   }
 
   private async initializeBot(): Promise<void> {
     try {
-      console.log('🚀 Initializing bot with historical data...');
+      Logger.info('Initializing bot with historical data...');
       
-      // Scrape historical analysis from the configured channels
       const historicalData = await this.historicalScraper.scrapeHistoricalAnalysis(
         this.client,
         this.config!
       );
       
-      // Load the historical data into the analysis linker
       this.analysisLinker.initializeFromHistoricalData(historicalData);
-      
-      // Mark as initialized so message processing can begin
       this.isInitialized = true;
       
-      console.log('🎉 Bot initialization complete! Ready to process messages.');
+      Logger.info('Bot initialization complete! Ready to process messages.');
     } catch (error) {
-      console.error('❌ Error during bot initialization:', error);
-      console.log('⚠️ Bot will continue without historical data.');
-      this.isInitialized = true; // Allow bot to continue functioning
+      Logger.error('Error during bot initialization:', error);
+      Logger.warn('Bot will continue without historical data.');
+      this.isInitialized = true;
     }
   }
 
@@ -137,44 +132,39 @@ class TradersMindBot {
     this.messageRetention.initialize(this.client, this.config!);
     this.messageRetention.startCleanupScheduler();
     
-    // Set static instance for global access in commands
     MessageRetention.setInstance(this.messageRetention);
     
-    console.log('🔄 Background services started');
+    Logger.info('Background services started');
   }
 
   private async shutdown(): Promise<void> {
-    console.log('🛑 Initiating graceful shutdown...');
+    Logger.info('Initiating graceful shutdown...');
     
     try {
-      // Stop background schedulers first
-      console.log('🛑 Stopping background schedulers...');
+      Logger.info('Stopping background schedulers...');
       this.messageRetention.stopCleanupScheduler();
       
-      // Perform final cleanup with timeout
-      console.log('🛑 Performing final cleanup...');
+      Logger.info('Performing final cleanup...');
       const cleanupPromise = Promise.all([
         this.messageRetention.performFinalCleanup(),
         Promise.resolve(this.ephemeralHandler.performFinalCleanup())
       ]);
       
-      // Add 5-second timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Cleanup timeout')), 5000);
       });
       
       await Promise.race([cleanupPromise, timeoutPromise]);
       
-      console.log('✅ Graceful shutdown complete');
+      Logger.info('Graceful shutdown complete');
       
     } catch (error) {
-      console.error('⚠️ Error during graceful shutdown:', error);
-      console.log('🛑 Proceeding with forced shutdown...');
+      Logger.error('Error during graceful shutdown:', error);
+      Logger.info('Proceeding with forced shutdown...');
     }
     
-    // Destroy Discord client and exit
     await this.client.destroy();
-    console.log('👋 Bot shutdown complete');
+    Logger.info('Bot shutdown complete');
     process.exit(0);
   }
 
@@ -187,7 +177,7 @@ class TradersMindBot {
       await this.loadCommands();
       await this.client.login(ENV.DISCORD_TOKEN);
     } catch (error) {
-      console.error('Failed to start bot:', error);
+      Logger.error('Failed to start bot:', error);
       process.exit(1);
     }
   }
@@ -195,7 +185,7 @@ class TradersMindBot {
   private async loadCommands(): Promise<void> {
     const statusCommand = await import('./commands/status');
     this.commands.set('status', statusCommand);
-    console.log('✅ Commands loaded');
+    Logger.info('Commands loaded');
   }
 }
 

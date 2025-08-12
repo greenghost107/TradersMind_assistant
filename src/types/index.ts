@@ -20,6 +20,9 @@ export interface AnalysisData {
   timestamp: Date;
   relevanceScore: number;
   messageUrl?: string;
+  chartUrls?: string[];
+  attachmentUrls?: string[];
+  hasCharts?: boolean;
 }
 
 export interface EphemeralInteraction {

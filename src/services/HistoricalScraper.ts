@@ -1,21 +1,25 @@
 import { Client, TextChannel, Collection, Message } from 'discord.js';
 import { BotConfig, AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
+import { UrlExtractor } from './UrlExtractor';
+import { Logger } from '../utils/Logger';
 
 export class HistoricalScraper {
   private symbolDetector: SymbolDetector;
+  private urlExtractor: UrlExtractor;
   private readonly DAYS_TO_SCRAPE = 7;
   private readonly REQUEST_DELAY_MS = 100; // Small delay between requests to avoid rate limits
 
   constructor() {
     this.symbolDetector = new SymbolDetector();
+    this.urlExtractor = new UrlExtractor();
   }
 
   public async scrapeHistoricalAnalysis(
     client: Client,
     config: BotConfig
   ): Promise<Map<string, AnalysisData>> {
-    console.log(`🔄 Starting historical analysis scrape (last ${this.DAYS_TO_SCRAPE} days)...`);
+    Logger.info(`Starting historical analysis scrape (last ${this.DAYS_TO_SCRAPE} days)...`);
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - this.DAYS_TO_SCRAPE);
@@ -28,19 +32,21 @@ export class HistoricalScraper {
       try {
         const channel = await client.channels.fetch(channelId) as TextChannel;
         if (!channel || !channel.isTextBased()) {
-          console.warn(`⚠️ Could not access analysis channel ${channelId}`);
+          Logger.warn(`Could not access analysis channel ${channelId}`);
           continue;
         }
 
-        console.log(`📊 Scraping #${channel.name} (${channelId})...`);
+        Logger.info(`Scraping #${channel.name} (${channelId})...`);
         
         const messages = await this.fetchRecentMessages(channel, cutoffDate);
-        console.log(`📝 Found ${messages.size} messages in #${channel.name}`);
+        Logger.info(`Found ${messages.size} messages in #${channel.name}`);
 
         const channelResults = await this.processChannelMessages(
           messages,
           channel.guildId || 'unknown'
         );
+        
+        Logger.debug(`Found ${channelResults.size} symbols in ${channel.name}`);
 
         // Merge results, keeping only the latest message per symbol
         for (const [symbol, analysisData] of channelResults) {
@@ -56,17 +62,17 @@ export class HistoricalScraper {
         // Small delay to avoid rate limits
         await this.delay(this.REQUEST_DELAY_MS);
       } catch (error) {
-        console.error(`❌ Error scraping channel ${channelId}:`, error);
+        Logger.error(`Error scraping channel ${channelId}:`, error);
       }
     }
 
-    console.log(`✅ Historical scrape complete!`);
-    console.log(`   📊 Processed ${totalMessagesProcessed} messages`);
-    console.log(`   🎯 Found ${latestAnalysisMap.size} unique symbols with analysis`);
+    Logger.info(`Historical scrape complete!`);
+    Logger.info(`Processed ${totalMessagesProcessed} messages`);
+    Logger.info(`Found ${latestAnalysisMap.size} unique symbols with analysis`);
     
     if (latestAnalysisMap.size > 0) {
       const symbols = Array.from(latestAnalysisMap.keys()).sort();
-      console.log(`   📈 Symbols: ${symbols.join(', ')}`);
+      Logger.info(`Symbols: ${symbols.join(', ')}`);
     }
 
     return latestAnalysisMap;
@@ -116,7 +122,7 @@ export class HistoricalScraper {
         // Small delay between batch fetches
         await this.delay(this.REQUEST_DELAY_MS);
       } catch (error) {
-        console.error(`Error fetching message batch:`, error);
+        Logger.error(`Error fetching message batch:`, error);
         break;
       }
     }
@@ -141,6 +147,10 @@ export class HistoricalScraper {
         const messageUrl = `https://discord.com/channels/${guildId}/${message.channelId}/${message.id}`;
         const symbolStrings = symbols.map(s => s.symbol);
         
+        const extractedUrls = this.urlExtractor.extractUrlsFromMessage(message);
+        
+        Logger.debug(`Processing message ${message.id}: symbols=${symbolStrings.join(', ')}, charts=${extractedUrls.chartUrls.length}, attachments=${extractedUrls.attachmentUrls.length}`);
+        
         const analysisData: AnalysisData = {
           messageId: message.id,
           channelId: message.channelId,
@@ -149,7 +159,10 @@ export class HistoricalScraper {
           symbols: symbolStrings,
           timestamp: message.createdAt,
           relevanceScore: this.calculateRelevanceScore(message.content, symbols.length),
-          messageUrl
+          messageUrl,
+          chartUrls: extractedUrls.chartUrls,
+          attachmentUrls: extractedUrls.attachmentUrls,
+          hasCharts: extractedUrls.hasCharts
         };
 
         // For each symbol, keep only the most recent analysis
@@ -160,7 +173,7 @@ export class HistoricalScraper {
           }
         }
       } catch (error) {
-        console.warn(`Warning: Failed to process message ${message.id}:`, error);
+        Logger.warn(`Failed to process message ${message.id}:`, error);
       }
     }
 

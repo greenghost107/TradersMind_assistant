@@ -1,5 +1,6 @@
 import { StockSymbol } from '../types';
 import { SYMBOL_PATTERN, COMMON_WORDS } from '../config';
+import { Logger } from '../utils/Logger';
 
 export class SymbolDetector {
   public detectSymbols(content: string): StockSymbol[] {
@@ -16,7 +17,10 @@ export class SymbolDetector {
       }
     }
 
-    return this.deduplicateAndSort(symbols);
+    const finalSymbols = this.deduplicateAndSort(symbols);
+    Logger.debug(`Detected symbols: ${finalSymbols.map(s => s.symbol).join(', ')}`);
+    
+    return finalSymbols;
   }
 
   private isValidSymbol(symbol: string): boolean {

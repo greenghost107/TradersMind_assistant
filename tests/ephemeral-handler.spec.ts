@@ -12,6 +12,34 @@ test.describe('EphemeralHandler', () => {
   });
 
   test('should create symbol buttons for detected symbols', async () => {
+    // First, add analysis data for the symbols
+    const aaplAnalysis = {
+      id: '111111111',
+      guildId: '987654321',
+      channelId: '456789123',
+      content: 'AAPL\nStrong bullish signals',
+      author: { bot: false, tag: 'Analyst#1234' },
+      createdAt: new Date(),
+      channel: { id: '456789123' },
+      attachments: new Map(),
+      embeds: []
+    } as any;
+
+    const tslaAnalysis = {
+      id: '222222222',
+      guildId: '987654321',
+      channelId: '456789123',
+      content: 'TSLA\nElectric vehicle growth',
+      author: { bot: false, tag: 'Analyst#5678' },
+      createdAt: new Date(),
+      channel: { id: '456789123' },
+      attachments: new Map(),
+      embeds: []
+    } as any;
+
+    await analysisLinker.indexMessage(aaplAnalysis);
+    await analysisLinker.indexMessage(tslaAnalysis);
+
     const mockMessage = {
       id: '123456789',
       content: 'Check out AAPL and TSLA today!',
@@ -38,6 +66,24 @@ test.describe('EphemeralHandler', () => {
   });
 
   test('should limit buttons to Discord maximum', async () => {
+    // First, add analysis for all 30 symbols
+    for (let i = 0; i < 30; i++) {
+      const symbol = `SYM${i.toString().padStart(2, '0')}`;
+      const analysisMessage = {
+        id: `msg${i}`,
+        guildId: '987654321',
+        channelId: '456789123',
+        content: `${symbol}\nAnalysis for ${symbol}`,
+        author: { bot: false, tag: 'Analyst#1234' },
+        createdAt: new Date(),
+        channel: { id: '456789123' },
+        attachments: new Map(),
+        embeds: []
+      } as any;
+      
+      await analysisLinker.indexMessage(analysisMessage);
+    }
+
     const mockMessage = {
       id: '123456789',
       content: 'Many symbols here',
@@ -63,6 +109,24 @@ test.describe('EphemeralHandler', () => {
   });
 
   test('should organize buttons into rows of 5', async () => {
+    // First, add analysis for the 12 symbols
+    for (let i = 0; i < 12; i++) {
+      const symbol = `SYM${i.toString().padStart(2, '0')}`;
+      const analysisMessage = {
+        id: `row_msg${i}`,
+        guildId: '987654321',
+        channelId: '456789123',
+        content: `${symbol}\nAnalysis for ${symbol}`,
+        author: { bot: false, tag: 'Analyst#1234' },
+        createdAt: new Date(),
+        channel: { id: '456789123' },
+        attachments: new Map(),
+        embeds: []
+      } as any;
+      
+      await analysisLinker.indexMessage(analysisMessage);
+    }
+
     const mockMessage = {
       id: '123456789',
       content: 'Multiple symbols',

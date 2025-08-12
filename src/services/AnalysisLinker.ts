@@ -1,27 +1,31 @@
 import { Message } from 'discord.js';
 import { AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
+import { UrlExtractor } from './UrlExtractor';
+import { Logger } from '../utils/Logger';
 
 export class AnalysisLinker {
   private analysisCache: Map<string, AnalysisData[]> = new Map();
   private latestAnalysisMap: Map<string, AnalysisData> = new Map();
   private symbolDetector: SymbolDetector;
+  private urlExtractor: UrlExtractor;
   private readonly MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
   constructor() {
     this.symbolDetector = new SymbolDetector();
+    this.urlExtractor = new UrlExtractor();
     this.startCacheCleanup();
   }
 
   public initializeFromHistoricalData(historicalMap: Map<string, AnalysisData>): void {
-    console.log(`📊 Loading ${historicalMap.size} historical analysis entries...`);
+    Logger.info(`Loading ${historicalMap.size} historical analysis entries...`);
     
-    // Clear existing data
     this.analysisCache.clear();
     this.latestAnalysisMap.clear();
     
-    // Load historical data
     for (const [symbol, analysisData] of historicalMap) {
+      Logger.debug(`Loading symbol: ${symbol}, attachments=${analysisData.attachmentUrls?.length || 0}, charts=${analysisData.chartUrls?.length || 0}`);
+      
       // Add to latest analysis map
       this.latestAnalysisMap.set(symbol, analysisData);
       
@@ -33,19 +37,22 @@ export class AnalysisLinker {
     }
     
     const symbols = Array.from(historicalMap.keys()).sort();
-    console.log(`✅ Historical data loaded for: ${symbols.join(', ')}`);
+    Logger.info(`Historical data loaded for: ${symbols.join(', ')}`);
   }
 
   public async indexMessage(message: Message): Promise<void> {
     if (message.author.bot) return;
 
-    // Extract symbol from first line of message
     const firstLine = message.content.split('\n')[0] || '';
     const symbols = this.symbolDetector.detectSymbols(firstLine);
-    if (symbols.length === 0) return;
+    if (symbols.length === 0) {
+      return;
+    }
 
-    // Create message URL
     const messageUrl = `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`;
+    const extractedUrls = this.urlExtractor.extractUrlsFromMessage(message);
+    
+    Logger.analysis(`Indexing message ${message.id}: symbols=${symbols.map(s => s.symbol).join(', ')}, charts=${extractedUrls.chartUrls.length}, attachments=${extractedUrls.attachmentUrls.length}`);
     
     const symbolStrings = symbols.map(s => s.symbol);
     const analysisData: AnalysisData = {
@@ -56,16 +63,18 @@ export class AnalysisLinker {
       symbols: symbolStrings,
       timestamp: message.createdAt,
       relevanceScore: this.calculateRelevanceScore(message.content, symbols.length),
-      messageUrl
+      messageUrl,
+      chartUrls: extractedUrls.chartUrls,
+      attachmentUrls: extractedUrls.attachmentUrls,
+      hasCharts: extractedUrls.hasCharts
     };
 
     for (const symbol of symbolStrings) {
       this.addToCache(symbol, analysisData);
-      // Store as latest analysis for this symbol
       this.latestAnalysisMap.set(symbol, analysisData);
     }
 
-    console.log(`📈 Indexed analysis for symbols: ${symbolStrings.join(', ')} from ${message.member?.nickname || message.author.tag}`);
+    Logger.info(`Indexed analysis for symbols: ${symbolStrings.join(', ')} from ${message.member?.nickname || message.author.tag}`);
   }
 
   public async getLatestAnalysis(symbol: string, limit: number = 3): Promise<AnalysisData[]> {
@@ -97,6 +106,21 @@ export class AnalysisLinker {
   public getLatestAnalysisUrl(symbol: string): string | null {
     const latestAnalysis = this.latestAnalysisMap.get(symbol);
     return latestAnalysis?.messageUrl || null;
+  }
+
+  public hasAnalysisFor(symbol: string): boolean {
+    const analysis = this.latestAnalysisMap.get(symbol);
+    return analysis ? this.isRecentEnough(analysis.timestamp) : false;
+  }
+
+  public getAvailableSymbols(): string[] {
+    const availableSymbols: string[] = [];
+    for (const [symbol, analysis] of this.latestAnalysisMap.entries()) {
+      if (this.isRecentEnough(analysis.timestamp)) {
+        availableSymbols.push(symbol);
+      }
+    }
+    return availableSymbols.sort();
   }
 
   private addToCache(symbol: string, analysis: AnalysisData): void {
@@ -199,7 +223,7 @@ export class AnalysisLinker {
     }
     
     if (totalRemoved > 0) {
-      console.log(`🧹 Cleaned up ${totalRemoved} expired analysis entries`);
+      Logger.info(`Cleaned up ${totalRemoved} expired analysis entries`);
     }
   }
 
