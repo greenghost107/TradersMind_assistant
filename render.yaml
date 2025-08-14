@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: tradersmind-discord-bot
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: ANALYSIS_CHANNEL_1_ID
+        sync: false
+      - key: ANALYSIS_CHANNEL_2_ID
+        sync: false
+      - key: GENERAL_NOTICES_CHANNEL_ID
+        sync: false
+      - key: MESSAGE_RETENTION_HOURS
+        value: "26"
+    autoDeploy: true
+    healthCheckPath: /health

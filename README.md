@@ -172,7 +172,119 @@ npm run test:playwright
 npm run test:all
 ```
 
-## Deployment Notes
+## Deployment
+
+### Local Development
+Follow the setup instructions above for local development.
+
+### Production Deployment (Render)
+
+This bot is configured for easy deployment to Render.com. Follow these steps:
+
+#### Prerequisites
+1. **Discord Bot Setup**:
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Create a new application or use existing one
+   - Go to "Bot" section and copy your bot token
+   - Ensure bot has proper permissions in your Discord server
+
+2. **GitHub Repository**:
+   - Push your code to a GitHub repository
+   - Make sure all files including `render.yaml` are committed
+
+#### Step-by-Step Render Deployment
+
+**Step 1: Push to GitHub**
+```bash
+git add .
+git commit -m "Add Render deployment configuration"
+git push origin main
+```
+
+If you don't have a GitHub repository:
+1. Go to [GitHub](https://github.com) → "New repository"
+2. Name: `TradersMind_discord_scanner` (or your preferred name)
+3. Don't initialize with README (your project already has one)
+4. Follow the instructions to push your existing code
+
+**Step 2: Create Render Service**
+1. Go to [Render.com](https://render.com) → "Get Started for Free"
+2. Sign up with your GitHub account (recommended)
+3. Click "New +" button → "Web Service"
+4. Click "Connect a repository"
+5. Find and select your repository
+6. Click "Connect"
+
+**Step 3: Configure Service Settings**
+Use these exact settings:
+- **Name**: `tradersmind-discord-bot` (or your preferred name)
+- **Environment**: `Node`
+- **Region**: Choose closest to your users
+- **Branch**: `main`
+- **Build Command**: `npm ci && npm run build`
+- **Start Command**: `npm start`
+- **Instance Type**: `Free` (to start with)
+
+**Step 4: Environment Variables Setup**
+In the Render dashboard, go to the "Environment" tab and add these variables:
+
+| Variable Name | Value | How to Get |
+|---------------|-------|------------|
+| `NODE_ENV` | `production` | Just type this |
+| `DISCORD_TOKEN` | Your bot token | Discord Developer Portal → Your App → Bot → Token |
+| `ANALYSIS_CHANNEL_1_ID` | Channel ID | Discord → Right-click channel → Copy ID |
+| `ANALYSIS_CHANNEL_2_ID` | Channel ID | Discord → Right-click channel → Copy ID |
+| `GENERAL_NOTICES_CHANNEL_ID` | Channel ID | Discord → Right-click channel → Copy ID |
+| `MESSAGE_RETENTION_HOURS` | `26` | Default value (optional) |
+
+**How to get Discord Channel IDs:**
+1. In Discord: User Settings → Advanced → Enable "Developer Mode"
+2. Right-click on any channel → "Copy ID"
+3. Use these IDs for the environment variables
+
+**Step 5: Deploy & Monitor**
+1. Click "Create Web Service"
+2. Wait for deployment (5-10 minutes)
+3. Monitor logs in Render dashboard
+4. Look for "Bot is online and ready!" message in logs
+5. Test bot functionality in Discord
+
+**Step 6: Verification Checklist**
+- ✅ Render logs show successful startup
+- ✅ Bot appears online in Discord server
+- ✅ Send test message with stock symbols in monitored channels
+- ✅ Use `/status` command to verify bot configuration
+- ✅ Check that ephemeral buttons appear and work correctly
+
+#### Cost Information
+- **Render Free Tier**: $0/month (sleeps after 15min inactivity)
+- **Render Starter**: $7/month (always on, recommended for production bots)
+
+#### Troubleshooting Deployment
+
+**Bot not starting:**
+- Check Render logs for error messages
+- Verify all environment variables are set correctly
+- Ensure `DISCORD_TOKEN` is valid and not expired
+
+**Bot appears offline:**
+- Check Discord Developer Portal → Bot → Privileged Gateway Intents
+- Ensure bot has proper permissions in your Discord server
+- Verify channel IDs are correct
+
+**Buttons not appearing:**
+- Verify `GENERAL_NOTICES_CHANNEL_ID` matches the channel you're testing in
+- Check that analysis channels have recent messages with symbols
+- Use `/status` command to verify bot configuration
+
+### Alternative Deployment Options
+
+- **Heroku**: Similar setup using `Procfile` instead of `render.yaml`
+- **Railway**: Direct GitHub integration with environment variables
+- **Docker**: Use the included configuration for containerized deployments
+- **VPS/Server**: Direct Node.js deployment with PM2 or similar process manager
+
+### Deployment Notes
 
 - **Simplified Setup**: Only requires environment variables - no slash command deployment needed
 - **Container-Ready**: Perfect for Docker deployments with environment-based config
