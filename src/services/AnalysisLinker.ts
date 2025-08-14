@@ -238,4 +238,8 @@ export class AnalysisLinker {
       totalAnalyses
     };
   }
+
+  public getTrackedSymbolsCount(): number {
+    return this.latestAnalysisMap.size;
+  }
 }

@@ -1,4 +1,5 @@
 import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
+import express from 'express';
 import { ENV, getBotConfig } from './config';
 import { BotConfig } from './types';
 import { ChannelScanner } from './services/ChannelScanner';
@@ -20,6 +21,7 @@ class TradersMindBot {
   private historicalScraper: HistoricalScraper;
   private commands: Collection<string, any>;
   private isInitialized: boolean = false;
+  private httpServer: any = null;
 
   constructor() {
     this.client = new Client({
@@ -134,13 +136,59 @@ class TradersMindBot {
     
     MessageRetention.setInstance(this.messageRetention);
     
+    this.startHealthCheckServer();
+    
     Logger.info('Background services started');
+  }
+
+  private startHealthCheckServer(): void {
+    const app = express();
+    const port = process.env.PORT || 10000;
+
+    app.get('/health', (req, res) => {
+      const stats = this.messageRetention.getRetentionStats();
+      res.json({
+        status: 'healthy',
+        bot: {
+          connected: this.client.isReady(),
+          initialized: this.isInitialized,
+          user: this.client.user?.tag || 'Not connected'
+        },
+        config: this.config ? {
+          analysisChannels: this.config.analysisChannels.length,
+          generalChannel: !!this.config.generalNoticesChannel,
+          retentionHours: this.config.retentionHours
+        } : null,
+        retention: stats,
+        symbolsTracked: this.analysisLinker.getTrackedSymbolsCount(),
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    app.get('/', (req, res) => {
+      res.json({ 
+        service: 'TradersMind Discord Bot',
+        status: 'running',
+        version: '1.0.0'
+      });
+    });
+
+    this.httpServer = app.listen(port, () => {
+      Logger.info(`Health check server started on port ${port}`);
+    });
   }
 
   private async shutdown(): Promise<void> {
     Logger.info('Initiating graceful shutdown...');
     
     try {
+      Logger.info('Stopping HTTP server...');
+      if (this.httpServer) {
+        this.httpServer.close();
+        this.httpServer = null;
+      }
+      
       Logger.info('Stopping background schedulers...');
       this.messageRetention.stopCleanupScheduler();
       
