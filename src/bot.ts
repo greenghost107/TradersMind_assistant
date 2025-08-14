@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { ENV, getBotConfig } from './config';
 import { BotConfig } from './types';
 import { ChannelScanner } from './services/ChannelScanner';
@@ -145,7 +145,7 @@ class TradersMindBot {
     const app = express();
     const port = process.env.PORT || 10000;
 
-    app.get('/health', (req, res) => {
+    app.get('/health', (req: Request, res: Response) => {
       const stats = this.messageRetention.getRetentionStats();
       res.json({
         status: 'healthy',
@@ -166,7 +166,7 @@ class TradersMindBot {
       });
     });
 
-    app.get('/', (req, res) => {
+    app.get('/', (req: Request, res: Response) => {
       res.json({ 
         service: 'TradersMind Discord Bot',
         status: 'running',
