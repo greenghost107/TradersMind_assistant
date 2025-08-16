@@ -5,6 +5,9 @@ import { BotConfig } from './types';
 import { ChannelScanner } from './services/ChannelScanner';
 import { SymbolDetector } from './services/SymbolDetector';
 import { AnalysisLinker } from './services/AnalysisLinker';
+import { DatabaseService } from './services/DatabaseService';
+import { DatabaseAnalysisLinker } from './services/DatabaseAnalysisLinker';
+import { DatabaseMigration } from './services/DatabaseMigration';
 import { MessageRetention } from './services/MessageRetention';
 import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
@@ -16,6 +19,10 @@ class TradersMindBot {
   private channelScanner: ChannelScanner;
   private symbolDetector: SymbolDetector;
   private analysisLinker: AnalysisLinker;
+  private databaseService: DatabaseService | undefined;
+  private databaseAnalysisLinker: DatabaseAnalysisLinker | undefined;
+  private databaseMigration: DatabaseMigration | undefined;
+  private useDatabaseMode: boolean = false;
   private messageRetention: MessageRetention;
   private ephemeralHandler: EphemeralHandler;
   private historicalScraper: HistoricalScraper;
@@ -37,6 +44,18 @@ class TradersMindBot {
     this.config = getBotConfig();
     this.symbolDetector = new SymbolDetector();
     this.analysisLinker = new AnalysisLinker();
+    
+    // Initialize database services
+    const databaseUrl = process.env.DATABASE_URL;
+    if (databaseUrl) {
+      this.databaseService = new DatabaseService(databaseUrl);
+      this.databaseAnalysisLinker = new DatabaseAnalysisLinker(this.databaseService);
+      this.databaseMigration = new DatabaseMigration(this.databaseService);
+      this.useDatabaseMode = true;
+      Logger.info('Database mode enabled');
+    } else {
+      Logger.warn('DATABASE_URL not found, running in memory mode');
+    }
     this.messageRetention = new MessageRetention();
     this.ephemeralHandler = new EphemeralHandler(this.analysisLinker, this.messageRetention);
     this.historicalScraper = new HistoricalScraper();
@@ -57,6 +76,11 @@ class TradersMindBot {
         Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}`);
         
         await this.initializeBot();
+        
+        // Initialize database services if available
+        if (this.useDatabaseMode) {
+          await this.initializeDatabaseServices();
+        }
         this.startBackgroundServices();
       } else {
         Logger.warn('Bot is not configured. Please set the required environment variables.');
@@ -69,7 +93,11 @@ class TradersMindBot {
       await this.channelScanner.handleMessage(message, this.config);
       
       if (this.config.analysisChannels.includes(message.channel.id)) {
-        await this.analysisLinker.indexMessage(message);
+        if (this.useDatabaseMode && this.databaseAnalysisLinker) {
+          await this.databaseAnalysisLinker.indexMessage(message);
+        } else {
+          await this.analysisLinker.indexMessage(message);
+        }
       }
     });
 
@@ -130,6 +158,60 @@ class TradersMindBot {
     }
   }
 
+  private async initializeDatabaseServices(): Promise<void> {
+    try {
+      Logger.info('Initializing database services...');
+      
+      if (!this.databaseService || !this.databaseAnalysisLinker || !this.databaseMigration) {
+        throw new Error('Database services not properly initialized');
+      }
+      
+      // Connect to database
+      await this.databaseService.connect();
+      
+      // Initialize database analysis linker
+      await this.databaseAnalysisLinker.initialize();
+      
+      // Check if migration is needed (if memory analysis exists and database is empty)
+      const memoryStats = this.analysisLinker.getCacheStats();
+      const dbStats = await this.databaseAnalysisLinker.getCacheStats();
+      
+      if (memoryStats.totalSymbols > 0 && dbStats.totalSymbols === 0) {
+        Logger.info(`Found ${memoryStats.totalSymbols} symbols in memory, migrating to database...`);
+        await this.databaseMigration.migrateFromMemoryToDatabase(this.analysisLinker);
+        
+        // Verify migration
+        const verification = await this.databaseMigration.verifyMigration();
+        if (verification.success) {
+          Logger.info(`✅ Migration successful: ${verification.symbolCount} symbols, ${verification.users} users`);
+        } else {
+          Logger.error('❌ Migration verification failed');
+        }
+      } else {
+        Logger.info('No migration needed - database already contains data or no memory data to migrate');
+      }
+      
+      Logger.info('Database services initialized successfully');
+    } catch (error) {
+      Logger.error('Failed to initialize database services:', error);
+      Logger.warn('Falling back to memory mode');
+      this.useDatabaseMode = false;
+    }
+  }
+
+  private async getTrackedSymbolsCount(): Promise<number> {
+    try {
+      if (this.useDatabaseMode && this.databaseAnalysisLinker) {
+        return await this.databaseAnalysisLinker.getTrackedSymbolsCount();
+      } else {
+        return this.analysisLinker.getTrackedSymbolsCount();
+      }
+    } catch (error) {
+      Logger.error('Failed to get tracked symbols count:', error);
+      return 0;
+    }
+  }
+
   private startBackgroundServices(): void {
     this.messageRetention.initialize(this.client, this.config!);
     this.messageRetention.startCleanupScheduler();
@@ -145,7 +227,7 @@ class TradersMindBot {
     const app = express();
     const port = process.env.PORT || 10000;
 
-    app.get('/health', (req: Request, res: Response) => {
+    app.get('/health', async (req: Request, res: Response) => {
       const stats = this.messageRetention.getRetentionStats();
       res.json({
         status: 'healthy',
@@ -160,7 +242,8 @@ class TradersMindBot {
           retentionHours: this.config.retentionHours
         } : null,
         retention: stats,
-        symbolsTracked: this.analysisLinker.getTrackedSymbolsCount(),
+        symbolsTracked: await this.getTrackedSymbolsCount(),
+        databaseMode: this.useDatabaseMode,
         uptime: Math.floor(process.uptime()),
         timestamp: new Date().toISOString()
       });
@@ -193,10 +276,17 @@ class TradersMindBot {
       this.messageRetention.stopCleanupScheduler();
       
       Logger.info('Performing final cleanup...');
-      const cleanupPromise = Promise.all([
+      const cleanupPromises = [
         this.messageRetention.performFinalCleanup(),
         Promise.resolve(this.ephemeralHandler.performFinalCleanup())
-      ]);
+      ];
+      
+      if (this.useDatabaseMode && this.databaseService) {
+        Logger.info('Closing database connection...');
+        cleanupPromises.push(this.databaseService.close());
+      }
+      
+      const cleanupPromise = Promise.all(cleanupPromises);
       
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Cleanup timeout')), 5000);
