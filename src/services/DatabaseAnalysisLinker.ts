@@ -9,7 +9,7 @@ export class DatabaseAnalysisLinker {
   private databaseService: DatabaseService;
   private symbolDetector: SymbolDetector;
   private urlExtractor: UrlExtractor;
-  private albertUser: User | null = null;
+  private adminUser: User | null = null;
   private readonly MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
   constructor(databaseService: DatabaseService) {
@@ -19,26 +19,26 @@ export class DatabaseAnalysisLinker {
   }
 
   async initialize(): Promise<void> {
-    // Ensure Albert exists as a user
-    this.albertUser = await this.databaseService.getUserByDiscordId(
-      process.env.ALBERT_DISCORD_ID || 'albert_default'
+    // Ensure Admin exists as a user
+    this.adminUser = await this.databaseService.getUserByDiscordId(
+      process.env.ADMIN_DISCORD_ID || 'admin_default'
     );
     
-    if (!this.albertUser) {
-      this.albertUser = await this.databaseService.addUser(
-        process.env.ALBERT_DISCORD_ID || 'albert_default',
-        'Albert'
+    if (!this.adminUser) {
+      this.adminUser = await this.databaseService.addUser(
+        process.env.ADMIN_DISCORD_ID || 'admin_default',
+        'Admin'
       );
-      Logger.info(`Created Albert user: ${this.albertUser.username}`);
+      Logger.info(`Created Admin user: ${this.adminUser.username}`);
     }
 
-    Logger.info(`DatabaseAnalysisLinker initialized with user: ${this.albertUser.username}`);
+    Logger.info(`DatabaseAnalysisLinker initialized with user: ${this.adminUser.username}`);
   }
 
   public async indexMessage(message: Message): Promise<void> {
     if (message.author.bot) return;
-    if (!this.albertUser) {
-      Logger.warn('Albert user not initialized, skipping message indexing');
+    if (!this.adminUser) {
+      Logger.warn('Admin user not initialized, skipping message indexing');
       return;
     }
 
@@ -66,7 +66,7 @@ export class DatabaseAnalysisLinker {
 
         await this.databaseService.updateLatestAnalysis(
           symbolData.symbol, 
-          this.albertUser.id, 
+          this.adminUser.id, 
           analysisData
         );
 
@@ -81,19 +81,19 @@ export class DatabaseAnalysisLinker {
   }
 
   public async getLatestAnalysis(symbol: string, limit: number = 3): Promise<LegacyAnalysisData[]> {
-    if (!this.albertUser) {
-      Logger.warn('Albert user not initialized');
+    if (!this.adminUser) {
+      Logger.warn('Admin user not initialized');
       return [];
     }
 
     try {
-      const historyData = await this.databaseService.getAnalysisHistory(symbol, this.albertUser.id);
+      const historyData = await this.databaseService.getAnalysisHistory(symbol, this.adminUser.id);
       
       // Convert database format to legacy format
       return historyData.slice(0, limit).map(data => ({
         messageId: this.extractMessageIdFromUrl(data.messageUrl),
         channelId: this.extractChannelIdFromUrl(data.messageUrl),
-        authorId: this.albertUser!.discord_id,
+        authorId: this.adminUser!.discord_id,
         content: data.content,
         symbols: [symbol],
         timestamp: data.timestamp,
@@ -123,10 +123,10 @@ export class DatabaseAnalysisLinker {
   }
 
   public async getLatestAnalysisUrl(symbol: string): Promise<string | null> {
-    if (!this.albertUser) return null;
+    if (!this.adminUser) return null;
 
     try {
-      const latest = await this.databaseService.getLatestAnalysis(symbol, this.albertUser.id);
+      const latest = await this.databaseService.getLatestAnalysis(symbol, this.adminUser.id);
       return latest?.messageUrl || null;
     } catch (error) {
       Logger.error(`Failed to get latest analysis URL for ${symbol}:`, error);
@@ -135,10 +135,10 @@ export class DatabaseAnalysisLinker {
   }
 
   public async hasAnalysisFor(symbol: string): Promise<boolean> {
-    if (!this.albertUser) return false;
+    if (!this.adminUser) return false;
 
     try {
-      const latest = await this.databaseService.getLatestAnalysis(symbol, this.albertUser.id);
+      const latest = await this.databaseService.getLatestAnalysis(symbol, this.adminUser.id);
       if (!latest) return false;
 
       const age = Date.now() - latest.timestamp.getTime();
@@ -150,13 +150,13 @@ export class DatabaseAnalysisLinker {
   }
 
   public async getAvailableSymbols(): Promise<string[]> {
-    if (!this.albertUser) return [];
+    if (!this.adminUser) return [];
 
     try {
       const analysts = await this.databaseService.getAnalysts();
       const allSymbols = new Set<string>();
 
-      // Get symbols from all analysts (for now just Albert)
+      // Get symbols from all analysts (for now just Admin)
       for (const analyst of analysts) {
         const count = await this.databaseService.getUserAnalysisCount(analyst.id);
         if (count > 0) {
@@ -223,12 +223,12 @@ export class DatabaseAnalysisLinker {
   }
 
   public async getCacheStats(): Promise<{ totalSymbols: number; totalAnalyses: number }> {
-    if (!this.albertUser) {
+    if (!this.adminUser) {
       return { totalSymbols: 0, totalAnalyses: 0 };
     }
 
     try {
-      const analysisCount = await this.databaseService.getUserAnalysisCount(this.albertUser.id);
+      const analysisCount = await this.databaseService.getUserAnalysisCount(this.adminUser.id);
       return {
         totalSymbols: analysisCount, // In database, each symbol has one latest entry
         totalAnalyses: analysisCount
@@ -240,10 +240,10 @@ export class DatabaseAnalysisLinker {
   }
 
   public async getTrackedSymbolsCount(): Promise<number> {
-    if (!this.albertUser) return 0;
+    if (!this.adminUser) return 0;
 
     try {
-      return await this.databaseService.getUserAnalysisCount(this.albertUser.id);
+      return await this.databaseService.getUserAnalysisCount(this.adminUser.id);
     } catch (error) {
       Logger.error('Failed to get tracked symbols count:', error);
       return 0;

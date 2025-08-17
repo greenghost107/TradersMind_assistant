@@ -36,6 +36,24 @@ export class Logger {
     }
   }
 
+  public static setLevelFromMode(mode: string): void {
+    // Set log level based on bot mode
+    switch (mode.toLowerCase()) {
+      case 'local':
+      case 'debug':
+        Logger.setLevel(LogLevel.DEBUG);
+        break;
+      case 'info':
+        Logger.setLevel(LogLevel.INFO);
+        break;
+      case 'production':
+        Logger.setLevel(LogLevel.INFO);
+        break;
+      default:
+        Logger.setLevel(LogLevel.INFO);
+    }
+  }
+
   private static shouldLog(level: LogLevel): boolean {
     return level <= Logger.currentLevel;
   }

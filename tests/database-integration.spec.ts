@@ -64,11 +64,11 @@ test.describe('Database Integration Tests', () => {
 
   test('should handle multiple users correctly', async () => {
     // Add multiple users
-    const albert = await databaseService.addUser('albert_123', 'Albert');
+    const admin = await databaseService.addUser('admin_123', 'Admin');
     const tomer = await databaseService.addUser('tomer_456', 'Tomer');
 
     // Both analyze the same symbol
-    const albertAnalysis: AnalysisData = {
+    const adminAnalysis: AnalysisData = {
       messageUrl: 'https://discord.com/channels/123/456/001',
       content: 'AAPL bullish breakout above $185',
       confidence: 0.9,
@@ -82,20 +82,20 @@ test.describe('Database Integration Tests', () => {
       timestamp: new Date('2025-01-01T11:00:00Z')
     };
 
-    await databaseService.updateLatestAnalysis('AAPL', albert.id, albertAnalysis);
+    await databaseService.updateLatestAnalysis('AAPL', admin.id, adminAnalysis);
     await databaseService.updateLatestAnalysis('AAPL', tomer.id, tomerAnalysis);
 
     // Verify separate tracking
-    const albertsApple = await databaseService.getLatestAnalysis('AAPL', albert.id);
+    const adminsApple = await databaseService.getLatestAnalysis('AAPL', admin.id);
     const tomersApple = await databaseService.getLatestAnalysis('AAPL', tomer.id);
 
-    expect(albertsApple!.content).toContain('bullish');
+    expect(adminsApple!.content).toContain('bullish');
     expect(tomersApple!.content).toContain('bearish');
 
     // Get all analysts for symbol
     const allAnalysts = await databaseService.getAllAnalystsForSymbol('AAPL');
     expect(allAnalysts).toHaveLength(2);
-    expect(allAnalysts.map(a => a.user.username)).toContain('Albert');
+    expect(allAnalysts.map(a => a.user.username)).toContain('Admin');
     expect(allAnalysts.map(a => a.user.username)).toContain('Tomer');
   });
 

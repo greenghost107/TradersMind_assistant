@@ -79,16 +79,16 @@ DATABASE_URL=postgresql://username:password@hostname:port/database_name
 4. **Value**: Paste the PostgreSQL connection string from Step 1.5
 5. Click **"Save Changes"**
 
-### 2.2 Add Albert's Discord ID (Required for Migration)
-The bot needs to know Albert's Discord ID to create his user profile:
+### 2.2 Add Admin's Discord ID (Required for Migration)
+The bot needs to know Admin's Discord ID to create his user profile:
 
-1. **Get Albert's Discord ID**:
+1. **Get Admin's Discord ID**:
    - In Discord, go to **User Settings** → **Advanced** → Enable **Developer Mode**
-   - Right-click on Albert's username → **Copy User ID**
+   - Right-click on Admin's username → **Copy User ID**
 
 2. **Add to Environment Variables**:
-   - **Key**: `ALBERT_DISCORD_ID`
-   - **Value**: Albert's Discord user ID (e.g., `123456789012345678`)
+   - **Key**: `ADMIN_DISCORD_ID`
+   - **Value**: Admin's Discord user ID (e.g., `123456789012345678`)
    - Click **"Save Changes"**
 
 ### 2.3 Verify All Environment Variables
@@ -104,7 +104,7 @@ PORT=10000
 
 # New database variables
 DATABASE_URL=postgresql://username:password@hostname:port/database_name
-ALBERT_DISCORD_ID=123456789012345678
+ADMIN_DISCORD_ID=123456789012345678
 ```
 
 ---
@@ -126,7 +126,7 @@ Watch the deployment logs carefully. You should see:
 
 # Bot initialization
 Initializing database services...
-DatabaseAnalysisLinker initialized with user: Albert
+DatabaseAnalysisLinker initialized with user: Admin
 
 # Migration detection
 Found 13 symbols in memory, migrating to database...
@@ -140,7 +140,7 @@ TradersMind Discord Bot is online and ready!
 
 ### 3.3 What Happens During Migration
 1. **Database Creation**: Creates 3 tables (users, symbols, analysis_history)
-2. **User Creation**: Creates Albert as the primary analyst
+2. **User Creation**: Creates Admin as the primary analyst
 3. **Data Migration**: Moves all existing analysis from memory to database
 4. **Verification**: Confirms migration completed successfully
 5. **Mode Switch**: Bot switches to database mode permanently
@@ -214,7 +214,7 @@ If you want to run the comprehensive test suite:
 ### 5.2 Test Categories Covered
 The test suite validates:
 - ✅ **Data persistence** across bot restarts
-- ✅ **Multi-user support** (Albert + future analysts)
+- ✅ **Multi-user support** (Admin + future analysts)
 - ✅ **High volume processing** (100+ messages)
 - ✅ **Performance under 256MB RAM limits**
 - ✅ **Error handling and recovery**
@@ -277,11 +277,11 @@ The bot automatically:
 
 **❌ Problem**: `Migration failed` or `No data migrated`
 ```bash
-❌ Migration failed: Albert user not found
+❌ Migration failed: Admin user not found
 ```
 
 **✅ Solutions**:
-1. **Add ALBERT_DISCORD_ID** environment variable
+1. **Add ADMIN_DISCORD_ID** environment variable
 2. **Verify Discord ID format** (numbers only, 17-19 digits)
 3. **Redeploy bot** after adding environment variable
 4. **Check logs** for specific error messages
@@ -325,7 +325,7 @@ The bot automatically:
 Once your database is working, you're ready for the **User Assistant Bot** features:
 
 ### Phase 1: Basic Commands
-- `/AAPL` - Get Albert's latest analysis
+- `/AAPL` - Get Admin's latest analysis
 - `/help` - Show available commands  
 - Welcome messages for new members
 
@@ -371,7 +371,7 @@ Before considering your database setup complete:
 
 - [ ] PostgreSQL add-on created in Render
 - [ ] DATABASE_URL environment variable added
-- [ ] ALBERT_DISCORD_ID environment variable added
+- [ ] ADMIN_DISCORD_ID environment variable added
 - [ ] Bot redeployed and showing `databaseMode: true`
 - [ ] Migration completed successfully (check logs)
 - [ ] Health endpoint shows correct symbol count
@@ -398,7 +398,7 @@ Your bot is now ready for **persistent, multi-analyst data storage** and prepare
 ## 📈 What You've Achieved
 
 ✅ **Persistent Storage**: Data survives restarts and deployments  
-✅ **Multi-User Ready**: Foundation for Albert, Tomer, and future analysts  
+✅ **Multi-User Ready**: Foundation for Admin, Tomer, and future analysts  
 ✅ **Cost Optimized**: $7-13/month total infrastructure cost  
 ✅ **Scalable Architecture**: Handles hundreds of symbols and analysts  
 ✅ **Production Ready**: Comprehensive error handling and monitoring  

@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import express, { Request, Response } from 'express';
-import { ENV, getBotConfig } from './config';
+import { ENV, getBotConfig, ModeManager, BotMode } from './config';
 import { BotConfig } from './types';
 import { ChannelScanner } from './services/ChannelScanner';
 import { SymbolDetector } from './services/SymbolDetector';
@@ -8,6 +8,7 @@ import { AnalysisLinker } from './services/AnalysisLinker';
 import { DatabaseService } from './services/DatabaseService';
 import { DatabaseAnalysisLinker } from './services/DatabaseAnalysisLinker';
 import { DatabaseMigration } from './services/DatabaseMigration';
+import { LocalDatabaseService } from './services/LocalDatabaseService';
 import { MessageRetention } from './services/MessageRetention';
 import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
@@ -19,10 +20,11 @@ class TradersMindBot {
   private channelScanner: ChannelScanner;
   private symbolDetector: SymbolDetector;
   private analysisLinker: AnalysisLinker;
-  private databaseService: DatabaseService | undefined;
+  private databaseService: DatabaseService | LocalDatabaseService | undefined;
   private databaseAnalysisLinker: DatabaseAnalysisLinker | undefined;
   private databaseMigration: DatabaseMigration | undefined;
-  private useDatabaseMode: boolean = false;
+  private modeManager: ModeManager;
+  private currentMode: BotMode;
   private messageRetention: MessageRetention;
   private ephemeralHandler: EphemeralHandler;
   private historicalScraper: HistoricalScraper;
@@ -31,6 +33,29 @@ class TradersMindBot {
   private httpServer: any = null;
 
   constructor() {
+    // Initialize mode manager first
+    this.modeManager = ModeManager.getInstance();
+    this.currentMode = this.modeManager.getMode();
+    
+    // Configure logging based on mode
+    Logger.setLevelFromMode(this.currentMode);
+    
+    // Log mode information
+    const modeInfo = this.modeManager.getModeInfo();
+    Logger.info(`🎯 Bot starting in ${this.currentMode.toUpperCase()} mode`);
+    Logger.debug(`Mode config:`, modeInfo.config);
+    
+    // Validate environment for current mode
+    const validation = this.modeManager.validateEnvironment();
+    if (!validation.valid) {
+      Logger.error(`❌ Environment validation failed for ${this.currentMode} mode:`);
+      validation.errors.forEach(error => Logger.error(`  - ${error}`));
+      
+      if (this.modeManager.isProductionMode()) {
+        throw new Error('Production mode requires valid environment configuration');
+      }
+    }
+
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -45,17 +70,8 @@ class TradersMindBot {
     this.symbolDetector = new SymbolDetector();
     this.analysisLinker = new AnalysisLinker();
     
-    // Initialize database services
-    const databaseUrl = process.env.DATABASE_URL;
-    if (databaseUrl) {
-      this.databaseService = new DatabaseService(databaseUrl);
-      this.databaseAnalysisLinker = new DatabaseAnalysisLinker(this.databaseService);
-      this.databaseMigration = new DatabaseMigration(this.databaseService);
-      this.useDatabaseMode = true;
-      Logger.info('Database mode enabled');
-    } else {
-      Logger.warn('DATABASE_URL not found, running in memory mode');
-    }
+    // Initialize database services based on mode
+    this.initializeDatabaseServices();
     this.messageRetention = new MessageRetention();
     this.ephemeralHandler = new EphemeralHandler(this.analysisLinker, this.messageRetention);
     this.historicalScraper = new HistoricalScraper();
@@ -68,6 +84,37 @@ class TradersMindBot {
     this.setupEventHandlers();
   }
 
+  private initializeDatabaseServices(): void {
+    const databaseType = this.modeManager.getDatabaseType();
+    
+    switch (databaseType) {
+      case 'postgresql':
+        const databaseUrl = process.env.DATABASE_URL;
+        if (databaseUrl) {
+          this.databaseService = new DatabaseService(databaseUrl);
+          this.databaseAnalysisLinker = new DatabaseAnalysisLinker(this.databaseService as DatabaseService);
+          this.databaseMigration = new DatabaseMigration(this.databaseService as DatabaseService);
+          Logger.info('PostgreSQL database mode initialized');
+        } else {
+          Logger.warn('DATABASE_URL not found for PostgreSQL mode, falling back to memory');
+        }
+        break;
+        
+      case 'sqlite':
+        const sqlitePath = this.modeManager.getSqlitePath();
+        this.databaseService = new LocalDatabaseService(sqlitePath);
+        // Create a compatible DatabaseAnalysisLinker for SQLite
+        this.databaseAnalysisLinker = new DatabaseAnalysisLinker(this.databaseService as any);
+        Logger.info(`SQLite database mode initialized: ${sqlitePath}`);
+        break;
+        
+      case 'memory':
+      default:
+        Logger.info('Memory-only mode initialized');
+        break;
+    }
+  }
+
   private setupEventHandlers(): void {
     this.client.once(Events.ClientReady, async () => {
       Logger.botStartup(`${this.client.user?.tag} is online and ready!`);
@@ -77,9 +124,9 @@ class TradersMindBot {
         
         await this.initializeBot();
         
-        // Initialize database services if available
-        if (this.useDatabaseMode) {
-          await this.initializeDatabaseServices();
+        // Initialize database connection if using database mode
+        if (this.databaseService && this.modeManager.getDatabaseType() !== 'memory') {
+          await this.initializeDatabaseConnection();
         }
         this.startBackgroundServices();
       } else {
@@ -93,7 +140,7 @@ class TradersMindBot {
       await this.channelScanner.handleMessage(message, this.config);
       
       if (this.config.analysisChannels.includes(message.channel.id)) {
-        if (this.useDatabaseMode && this.databaseAnalysisLinker) {
+        if (this.databaseAnalysisLinker && this.modeManager.getDatabaseType() !== 'memory') {
           await this.databaseAnalysisLinker.indexMessage(message);
         } else {
           await this.analysisLinker.indexMessage(message);
@@ -158,50 +205,56 @@ class TradersMindBot {
     }
   }
 
-  private async initializeDatabaseServices(): Promise<void> {
+  private async initializeDatabaseConnection(): Promise<void> {
     try {
-      Logger.info('Initializing database services...');
+      Logger.info('Connecting to database...');
       
-      if (!this.databaseService || !this.databaseAnalysisLinker || !this.databaseMigration) {
-        throw new Error('Database services not properly initialized');
+      if (!this.databaseService) {
+        throw new Error('Database service not initialized');
       }
       
       // Connect to database
       await this.databaseService.connect();
       
-      // Initialize database analysis linker
-      await this.databaseAnalysisLinker.initialize();
-      
-      // Check if migration is needed (if memory analysis exists and database is empty)
-      const memoryStats = this.analysisLinker.getCacheStats();
-      const dbStats = await this.databaseAnalysisLinker.getCacheStats();
-      
-      if (memoryStats.totalSymbols > 0 && dbStats.totalSymbols === 0) {
-        Logger.info(`Found ${memoryStats.totalSymbols} symbols in memory, migrating to database...`);
-        await this.databaseMigration.migrateFromMemoryToDatabase(this.analysisLinker);
+      // Initialize database analysis linker if it exists
+      if (this.databaseAnalysisLinker) {
+        await this.databaseAnalysisLinker.initialize();
         
-        // Verify migration
-        const verification = await this.databaseMigration.verifyMigration();
-        if (verification.success) {
-          Logger.info(`✅ Migration successful: ${verification.symbolCount} symbols, ${verification.users} users`);
-        } else {
-          Logger.error('❌ Migration verification failed');
+        // For PostgreSQL mode, check if migration is needed
+        if (this.modeManager.getDatabaseType() === 'postgresql' && this.databaseMigration) {
+          const memoryStats = this.analysisLinker.getCacheStats();
+          const dbStats = await this.databaseAnalysisLinker.getCacheStats();
+          
+          if (memoryStats.totalSymbols > 0 && dbStats.totalSymbols === 0) {
+            Logger.info(`Found ${memoryStats.totalSymbols} symbols in memory, migrating to database...`);
+            await this.databaseMigration.migrateFromMemoryToDatabase(this.analysisLinker);
+            
+            // Verify migration
+            const verification = await this.databaseMigration.verifyMigration();
+            if (verification.success) {
+              Logger.info(`✅ Migration successful: ${verification.symbolCount} symbols, ${verification.users} users`);
+            } else {
+              Logger.error('❌ Migration verification failed');
+            }
+          }
         }
-      } else {
-        Logger.info('No migration needed - database already contains data or no memory data to migrate');
       }
       
-      Logger.info('Database services initialized successfully');
+      Logger.info(`✅ Database connection established (${this.modeManager.getDatabaseType()})`);
     } catch (error) {
-      Logger.error('Failed to initialize database services:', error);
-      Logger.warn('Falling back to memory mode');
-      this.useDatabaseMode = false;
+      Logger.error('Failed to connect to database:', error);
+      
+      if (this.modeManager.isProductionMode()) {
+        throw error; // Fail hard in production mode
+      } else {
+        Logger.warn('Falling back to memory mode');
+      }
     }
   }
 
   private async getTrackedSymbolsCount(): Promise<number> {
     try {
-      if (this.useDatabaseMode && this.databaseAnalysisLinker) {
+      if (this.databaseAnalysisLinker && this.modeManager.getDatabaseType() !== 'memory') {
         return await this.databaseAnalysisLinker.getTrackedSymbolsCount();
       } else {
         return this.analysisLinker.getTrackedSymbolsCount();
@@ -225,7 +278,7 @@ class TradersMindBot {
 
   private startHealthCheckServer(): void {
     const app = express();
-    const port = process.env.PORT || 10000;
+    const port = this.modeManager.getHealthPort();
 
     app.get('/health', async (req: Request, res: Response) => {
       const stats = this.messageRetention.getRetentionStats();
@@ -243,7 +296,8 @@ class TradersMindBot {
         } : null,
         retention: stats,
         symbolsTracked: await this.getTrackedSymbolsCount(),
-        databaseMode: this.useDatabaseMode,
+        mode: this.currentMode,
+        databaseType: this.modeManager.getDatabaseType(),
         uptime: Math.floor(process.uptime()),
         timestamp: new Date().toISOString()
       });
@@ -281,7 +335,7 @@ class TradersMindBot {
         Promise.resolve(this.ephemeralHandler.performFinalCleanup())
       ];
       
-      if (this.useDatabaseMode && this.databaseService) {
+      if (this.databaseService && this.modeManager.getDatabaseType() !== 'memory') {
         Logger.info('Closing database connection...');
         cleanupPromises.push(this.databaseService.close());
       }
@@ -307,7 +361,25 @@ class TradersMindBot {
   }
 
   public async start(): Promise<void> {
+    // Check if Discord token is required for current mode
+    const validation = this.modeManager.validateEnvironment();
+    if (!validation.valid && this.modeManager.isProductionMode()) {
+      Logger.error('Production mode validation failed:', validation.errors);
+      throw new Error('Production mode requires valid environment configuration');
+    }
+
+    // For local mode, we might skip Discord connection if configured
+    if (this.modeManager.isLocalMode() && process.env.SKIP_DISCORD === 'true') {
+      Logger.info('🏠 Local mode: Skipping Discord connection (SKIP_DISCORD=true)');
+      Logger.info('🌐 Starting local health server only...');
+      this.startHealthCheckServer();
+      return;
+    }
+
     if (!ENV.DISCORD_TOKEN) {
+      if (this.modeManager.isLocalMode()) {
+        Logger.warn('⚠️ DISCORD_TOKEN not found. Set SKIP_DISCORD=true to run without Discord in local mode.');
+      }
       throw new Error('DISCORD_TOKEN is required in environment variables');
     }
 
@@ -316,6 +388,9 @@ class TradersMindBot {
       await this.client.login(ENV.DISCORD_TOKEN);
     } catch (error) {
       Logger.error('Failed to start bot:', error);
+      if (this.modeManager.isLocalMode()) {
+        Logger.warn('💡 Tip: Set SKIP_DISCORD=true to run local mode without Discord');
+      }
       process.exit(1);
     }
   }

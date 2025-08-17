@@ -1,5 +1,10 @@
 import { config } from 'dotenv';
 import { BotConfig } from '../types';
+import { ModeManager, BotMode } from './ModeManager';
+import { LocalConfig } from './modes/LocalConfig';
+import { DebugConfig } from './modes/DebugConfig';
+import { InfoConfig } from './modes/InfoConfig';
+import { ProductionConfig } from './modes/ProductionConfig';
 
 config();
 
@@ -13,6 +18,30 @@ export const ENV = {
 };
 
 export const getBotConfig = (): BotConfig | null => {
+  const modeManager = ModeManager.getInstance();
+  const currentMode = modeManager.getMode();
+
+  // Mode-specific configuration
+  switch (currentMode) {
+    case BotMode.LOCAL:
+      return LocalConfig.getBotConfig();
+    
+    case BotMode.DEBUG:
+      return DebugConfig.getBotConfig();
+    
+    case BotMode.INFO:
+      return InfoConfig.getBotConfig();
+    
+    case BotMode.PRODUCTION:
+      return ProductionConfig.getBotConfig();
+    
+    default:
+      // Fallback to original logic
+      return getLegacyBotConfig();
+  }
+};
+
+const getLegacyBotConfig = (): BotConfig | null => {
   if (!ENV.ANALYSIS_CHANNEL_1_ID || !ENV.ANALYSIS_CHANNEL_2_ID || !ENV.GENERAL_NOTICES_CHANNEL_ID) {
     return null;
   }
@@ -39,3 +68,10 @@ export const COMMON_WORDS = new Set([
 
 export const SYMBOL_PATTERN = /\b([A-Z]{1,5})\b/g;
 export const MAX_DISCORD_BUTTONS = 25;
+
+// Export mode-related utilities
+export { ModeManager, BotMode } from './ModeManager';
+export { LocalConfig } from './modes/LocalConfig';
+export { DebugConfig } from './modes/DebugConfig';
+export { InfoConfig } from './modes/InfoConfig';
+export { ProductionConfig } from './modes/ProductionConfig';

@@ -10,7 +10,10 @@ build/
 
 # Environment variables
 .env
+.env.debug
+.env.info
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
@@ -53,3 +56,6 @@ coverage/
 *.png
 *.txt
 playwright-report/
+
+local_bot.db
+test_local_bot.db

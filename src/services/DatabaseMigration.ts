@@ -13,15 +13,15 @@ export class DatabaseMigration {
     Logger.info('Starting migration from memory to database...');
 
     try {
-      // 1. Create Albert as initial user
-      let albertUser = await this.databaseService.getUserByDiscordId(process.env.ALBERT_DISCORD_ID || 'albert_default');
+      // 1. Create Admin as initial user
+      let adminUser = await this.databaseService.getUserByDiscordId(process.env.ADMIN_DISCORD_ID || 'admin_default');
       
-      if (!albertUser) {
-        albertUser = await this.databaseService.addUser(
-          process.env.ALBERT_DISCORD_ID || 'albert_default',
-          'Albert'
+      if (!adminUser) {
+        adminUser = await this.databaseService.addUser(
+          process.env.ADMIN_DISCORD_ID || 'admin_default',
+          'Admin'
         );
-        Logger.info(`Created user: ${albertUser.username} (ID: ${albertUser.id})`);
+        Logger.info(`Created user: ${adminUser.username} (ID: ${adminUser.id})`);
       }
 
       // 2. Get memory data using reflection
@@ -40,7 +40,7 @@ export class DatabaseMigration {
             timestamp: analysis.timestamp
           };
 
-          await this.databaseService.updateLatestAnalysis(symbol, albertUser.id, dbAnalysisData);
+          await this.databaseService.updateLatestAnalysis(symbol, adminUser.id, dbAnalysisData);
           migratedCount++;
           
           if (migratedCount % 10 === 0) {
@@ -66,7 +66,7 @@ export class DatabaseMigration {
               timestamp: analysis.timestamp
             };
 
-            await this.databaseService.updateLatestAnalysis(symbol, albertUser.id, dbAnalysisData);
+            await this.databaseService.updateLatestAnalysis(symbol, adminUser.id, dbAnalysisData);
             historyCount++;
           } catch (error) {
             // Skip duplicates or errors in historical data
@@ -78,7 +78,7 @@ export class DatabaseMigration {
       Logger.info(`✅ Migration completed successfully!`);
       Logger.info(`   - Migrated ${migratedCount} latest symbols`);
       Logger.info(`   - Migrated ${historyCount} historical analyses`);
-      Logger.info(`   - User: ${albertUser.username} (${albertUser.discord_id})`);
+      Logger.info(`   - User: ${adminUser.username} (${adminUser.discord_id})`);
 
     } catch (error) {
       Logger.error('❌ Migration failed:', error);

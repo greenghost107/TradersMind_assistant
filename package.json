@@ -13,7 +13,17 @@
     "test:all": "npm run test && npm run test:playwright",
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit",
-    "postinstall": "npm run build"
+    "postinstall": "npm run build",
+    "dev:local": "dotenv -e .env.local -- ts-node src/bot.ts",
+    "dev:debug": "dotenv -e .env.debug -- ts-node src/bot.ts",
+    "dev:info": "dotenv -e .env.info -- ts-node src/bot.ts",
+    "start:production": "dotenv -e .env.production -- node dist/bot.js",
+    "local:setup": "dotenv -e .env.local -- ts-node src/scripts/setup-local.ts",
+    "local:seed": "dotenv -e .env.local -- ts-node src/scripts/seed-test-data.ts",
+    "local:reset": "npm run local:setup",
+    "test:local": "dotenv -e .env.local -- npm run test",
+    "mode:check": "ts-node -e \"import {ModeManager} from './src/config/ModeManager'; const m = ModeManager.getInstance(); console.log('Mode:', m.getMode()); console.log('Config:', JSON.stringify(m.getModeInfo(), null, 2));\"",
+    "mode:validate": "ts-node -e \"import {ModeManager} from './src/config/ModeManager'; const m = ModeManager.getInstance(); const v = m.validateEnvironment(); console.log('Valid:', v.valid); if(!v.valid) v.errors.forEach(e => console.log('Error:', e));\""
   },
   "keywords": [
     "discord",
@@ -28,16 +38,19 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.5",
     "@types/pg": "^8.15.5",
+    "@types/sqlite3": "^5.1.0",
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
     "express": "^4.21.2",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2",
     "@types/jest": "^29.5.8",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
+    "dotenv-cli": "^10.0.0",
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
