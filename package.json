@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/bot.js",
+    "start:prod": "NODE_ENV=production node dist/bot.js",
     "dev": "ts-node src/bot.ts",
+    "dev:prod": "NODE_ENV=production ts-node src/bot.ts",
     "test": "jest",
     "test:playwright": "playwright test",
     "test:all": "npm run test && npm run test:playwright",
