@@ -74,7 +74,7 @@ export class AnalysisLinker {
       this.latestAnalysisMap.set(symbol, analysisData);
     }
 
-    Logger.info(`Indexed analysis for symbols: ${symbolStrings.join(', ')} from ${message.member?.nickname || message.author.tag}`);
+    Logger.info(`Indexed analysis for symbols: ${symbolStrings.join(', ')} from ${message.member?.displayName || message.author.tag || message.author.id}`);
   }
 
   public async getLatestAnalysis(symbol: string, limit: number = 3): Promise<AnalysisData[]> {

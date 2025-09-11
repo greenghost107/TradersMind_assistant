@@ -40,52 +40,62 @@ export class Logger {
     return level <= Logger.currentLevel;
   }
 
+  private static formatTimestamp(): string {
+    const now = new Date();
+    const day = now.getDate().toString().padStart(2, '0');
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const year = now.getFullYear().toString().slice(-2);
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+
+        return `${day}/${month}/${year} ${hours}:${minutes}`;}
+
   public static error(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.ERROR)) {
-      console.error(`❌ ERROR: ${message}`, ...args);
+      console.error(`[${Logger.formatTimestamp()}] ❌ ERROR: ${message}`, ...args);
     }
   }
 
   public static warn(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.WARN)) {
-      console.warn(`⚠️ WARN: ${message}`, ...args);
+      console.warn(`[${Logger.formatTimestamp()}] ⚠️ WARN: ${message}`, ...args);
     }
   }
 
   public static info(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.INFO)) {
-      console.log(`ℹ️ INFO: ${message}`, ...args);
+      console.log(`[${Logger.formatTimestamp()}] ℹ️ INFO: ${message}`, ...args);
     }
   }
 
   public static debug(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.DEBUG)) {
-      console.log(`🔍 DEBUG: ${message}`, ...args);
+      console.log(`[${Logger.formatTimestamp()}] 🔍 DEBUG: ${message}`, ...args);
     }
   }
 
   // Specialized logging methods for different components
   public static botStartup(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.INFO)) {
-      console.log(`🚀 ${message}`, ...args);
+      console.log(`[${Logger.formatTimestamp()}] 🚀 ${message}`, ...args);
     }
   }
 
   public static analysis(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.DEBUG)) {
-      console.log(`📊 ANALYSIS: ${message}`, ...args);
+      console.log(`[${Logger.formatTimestamp()}] 📊 ANALYSIS: ${message}`, ...args);
     }
   }
 
   public static interaction(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.DEBUG)) {
-      console.log(`🎯 INTERACTION: ${message}`, ...args);
+      console.log(`[${Logger.formatTimestamp()}] 🎯 INTERACTION: ${message}`, ...args);
     }
   }
 
   public static urlExtraction(message: string, ...args: any[]): void {
     if (Logger.shouldLog(LogLevel.DEBUG)) {
-      console.log(`🔗 URL: ${message}`, ...args);
+      console.log(`[${Logger.formatTimestamp()}] 🔗 URL: ${message}`, ...args);
     }
   }
 }

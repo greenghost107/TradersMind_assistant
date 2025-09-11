@@ -27,7 +27,7 @@ export class ChannelScanner {
       this.analysisLinker.hasAnalysisFor(symbol.symbol)
     );
 
-    Logger.info(`Found ${symbols.length} symbols in message from ${message.member?.nickname || message.author.tag}: ${symbols.map(s => s.symbol).join(', ')}`);
+    Logger.info(`Found ${symbols.length} symbols in message from ${message.member?.displayName || message.author.tag || message.author.id}}: ${symbols.map(s => s.symbol).join(', ')}`);
     
     if (symbolsWithAnalysis.length === 0) {
       Logger.debug(`No symbols with analysis data available - skipping button creation`);
