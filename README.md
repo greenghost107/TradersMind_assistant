@@ -186,7 +186,25 @@ This bot is configured for easy deployment to Render.com. Follow these steps:
    - Go to [Discord Developer Portal](https://discord.com/developers/applications)
    - Create a new application or use existing one
    - Go to "Bot" section and copy your bot token
-   - Ensure bot has proper permissions in your Discord server
+   - Ensure bot has proper permissions in your Discord server (see permissions below)
+
+#### Required Discord Bot Permissions
+
+Your bot needs exactly these 4 permissions:
+
+| Permission | Purpose |
+|------------|---------|
+| **Send Messages** | Send button responses and handle interactions |
+| **Use External Emojis** | Display emoji (📊) in button labels |
+| **Embed Links** | Display rich analysis embeds with charts and formatted content |
+| **Read Message History** | Scrape historical analysis messages on startup to build analysis cache |
+
+**How to set permissions:**
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications) → Your App → OAuth2 → URL Generator
+2. Select **Bot** scope
+3. Select the 4 permissions listed above
+4. Use the generated URL to invite your bot to the server
+5. Or manually assign these permissions in your Discord server's role settings
 
 2. **GitHub Repository**:
    - Push your code to a GitHub repository
