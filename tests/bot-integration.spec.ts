@@ -14,7 +14,7 @@ test.describe('Bot Integration', () => {
     symbolDetector = new SymbolDetector();
     analysisLinker = new AnalysisLinker();
     ephemeralHandler = new EphemeralHandler(analysisLinker);
-    channelScanner = new ChannelScanner(symbolDetector, ephemeralHandler);
+    channelScanner = new ChannelScanner(symbolDetector, ephemeralHandler, analysisLinker);
   });
 
   test('should index analysis from analysis channels', async () => {
@@ -57,6 +57,30 @@ test.describe('Bot Integration', () => {
       guildId: '999999999'
     };
 
+    // Add analysis for the symbols first
+    const aaplAnalysis = {
+      id: 'aapl456',
+      guildId: '999999999',
+      channelId: '111111111',
+      content: 'AAPL\nApple analysis for testing',
+      author: { bot: false, tag: 'TestAnalyst#1111' },
+      createdAt: new Date(),
+      channel: { id: '111111111' }
+    } as any;
+    
+    const tslaAnalysis = {
+      id: 'tsla456',
+      guildId: '999999999',
+      channelId: '111111111',
+      content: 'TSLA\nTesla analysis for testing',
+      author: { bot: false, tag: 'TestAnalyst#1111' },
+      createdAt: new Date(),
+      channel: { id: '111111111' }
+    } as any;
+    
+    await analysisLinker.indexMessage(aaplAnalysis);
+    await analysisLinker.indexMessage(tslaAnalysis);
+
     let buttonsSent = false;
     const generalMessage = {
       id: 'general123',
@@ -65,7 +89,7 @@ test.describe('Bot Integration', () => {
       author: { bot: false, tag: 'User#5678' },
       reply: async (options: any) => {
         buttonsSent = true;
-        expect(options.embeds).toHaveLength(1);
+        expect(options.embeds).toBeUndefined();
         expect(options.components.length).toBeGreaterThan(0);
       }
     } as any;
@@ -283,6 +307,41 @@ test.describe('Bot Integration', () => {
       guildId: '999999999'
     };
 
+    // Add analysis for the symbols first
+    const nvdaAnalysis = {
+      id: 'nvda123',
+      guildId: '999999999',
+      channelId: '111111111',
+      content: 'NVDA\nNvidia analysis',
+      author: { bot: false, tag: 'Analyst#1111' },
+      createdAt: new Date(),
+      channel: { id: '111111111' }
+    } as any;
+    
+    const aaplAnalysis = {
+      id: 'aapl123',
+      guildId: '999999999',
+      channelId: '111111111',
+      content: 'AAPL\nApple analysis',
+      author: { bot: false, tag: 'Analyst#1111' },
+      createdAt: new Date(),
+      channel: { id: '111111111' }
+    } as any;
+    
+    const tslaAnalysis = {
+      id: 'tsla123',
+      guildId: '999999999',
+      channelId: '111111111',
+      content: 'TSLA\nTesla analysis',
+      author: { bot: false, tag: 'Analyst#1111' },
+      createdAt: new Date(),
+      channel: { id: '111111111' }
+    } as any;
+    
+    await analysisLinker.indexMessage(nvdaAnalysis);
+    await analysisLinker.indexMessage(aaplAnalysis);
+    await analysisLinker.indexMessage(tslaAnalysis);
+
     let buttonResponse: any = null;
     const complexEmojiMessage = {
       id: 'complex123',
@@ -478,5 +537,113 @@ test.describe('Bot Integration', () => {
     // Verify the proper analysis was indexed, not the thread message
     const analysisUrl = analysisLinker.getLatestAnalysisUrl('AAPL');
     expect(analysisUrl).toBe('https://discord.com/channels/999999999/111111111/proper123');
+  });
+
+  test('should handle analysis followed by ticker-only message in same analysis channel', async () => {
+    const config = {
+      analysisChannels: ['111111111', '222222222'],
+      generalNoticesChannel: '333333333',
+      retentionHours: 24,
+      guildId: '999999999'
+    };
+
+    // Step 1: Post proper analysis message in analysis channel
+    const analysisMessage = {
+      id: 'analysis789',
+      guildId: '999999999',
+      channelId: '111111111', // Analysis channel
+      content: 'BX\nBlackstone showing strong momentum above $150 resistance. Chart indicates breakout pattern with volume confirmation.',
+      author: { bot: false, tag: 'ChartAnalyst#7777' },
+      createdAt: new Date(),
+      channel: { id: '111111111' },
+      attachments: new Map([
+        ['attach1', { 
+          id: 'attach1',
+          url: 'https://discord.com/attachments/111111111/analysis789/bx_chart.png',
+          contentType: 'image/png'
+        }]
+      ])
+    } as any;
+
+    await analysisLinker.indexMessage(analysisMessage);
+
+    // Verify BX analysis was indexed
+    expect(analysisLinker.getLatestAnalysisUrl('BX')).toBe('https://discord.com/channels/999999999/111111111/analysis789');
+
+    // Step 2: Post ticker-only message in SAME analysis channel (should NOT be indexed)
+    const tickerOnlyMessage = {
+      id: 'tickers123',
+      guildId: '999999999',
+      channelId: '111111111', // Same analysis channel
+      content: 'BX / AFRM / PL / PLTR\n@everyone', // No analysis content, just ticker list
+      author: { bot: false, tag: 'TradingBot#8888' },
+      createdAt: new Date(Date.now() + 5000), // 5 seconds later
+      channel: { id: '111111111' }
+    } as any;
+
+    await analysisLinker.indexMessage(tickerOnlyMessage);
+
+    // Verify ticker-only message was NOT indexed for AFRM, PL, PLTR (no analysis content)
+    expect(analysisLinker.getLatestAnalysisUrl('AFRM')).toBeNull();
+    expect(analysisLinker.getLatestAnalysisUrl('PL')).toBeNull();
+    expect(analysisLinker.getLatestAnalysisUrl('PLTR')).toBeNull();
+
+    // BX should still point to the original analysis (not the ticker-only message)
+    expect(analysisLinker.getLatestAnalysisUrl('BX')).toBe('https://discord.com/channels/999999999/111111111/analysis789');
+
+    // Step 3: User mentions these tickers in general channel
+    let buttonResponse: any = null;
+    const generalMessage = {
+      id: 'general789',
+      channelId: '333333333', // General channel
+      content: 'What do you think about BX, AFRM, PL, and PLTR today?',
+      author: { bot: false, tag: 'Trader#9999' },
+      reply: async (options: any) => {
+        buttonResponse = options;
+      }
+    } as any;
+
+    await channelScanner.handleMessage(generalMessage, config);
+
+    // Should create button only for BX (has analysis), not for AFRM, PL, PLTR
+    expect(buttonResponse).toBeTruthy();
+    expect(buttonResponse.embeds).toBeUndefined();
+    
+    const buttonLabels = buttonResponse.components.flatMap((row: any) => 
+      row.components.map((btn: any) => btn.data.label)
+    );
+    
+    // Only BX should have a button
+    expect(buttonLabels).toEqual(['📊 $BX']);
+    expect(buttonLabels).not.toContain('📊 $AFRM');
+    expect(buttonLabels).not.toContain('📊 $PL');
+    expect(buttonLabels).not.toContain('📊 $PLTR');
+
+    // Step 4: Test button interaction shows proper analysis with chart
+    const mockBxInteraction = {
+      customId: 'symbol_BX_general789',
+      user: { id: 'trader9999' },
+      guildId: '999999999',
+      client: {
+        channels: {
+          cache: {
+            get: (channelId: string) => ({ name: 'analysis-1' })
+          }
+        }
+      },
+      deferReply: async (options: any) => {
+        expect(options.ephemeral).toBe(true);
+      },
+      editReply: async (options: any) => {
+        expect(options.embeds).toHaveLength(1);
+        expect(options.embeds[0].data.title).toContain('BX');
+        expect(options.embeds[0].data.description).toContain('Blackstone showing strong momentum');
+        expect(options.embeds[0].data.url).toBe('https://discord.com/channels/999999999/111111111/analysis789');
+        // Should include chart image
+        expect(options.embeds[0].data.image).toBeTruthy();
+      }
+    } as any;
+
+    await ephemeralHandler.handleButtonInteraction(mockBxInteraction);
   });
 });

@@ -42,6 +42,10 @@ test.describe('HistoricalScraper', () => {
           mockMessages.set('msg1', message1);
           mockMessages.set('msg2', message2);
           
+          // Add Collection-like methods
+          mockMessages.last = () => message2;
+          mockMessages.values = () => [message1, message2].values();
+          
           return mockMessages;
         }
       }
@@ -65,6 +69,11 @@ test.describe('HistoricalScraper', () => {
           };
           
           mockMessages.set('msg3', message3);
+          
+          // Add Collection-like methods  
+          mockMessages.last = () => message3;
+          mockMessages.values = () => [message3].values();
+          
           return mockMessages;
         }
       }
@@ -136,6 +145,10 @@ test.describe('HistoricalScraper', () => {
           
           mockMessages.set('older', olderMessage);
           mockMessages.set('newer', newerMessage);
+          
+          // Add Collection-like methods
+          mockMessages.last = () => newerMessage;
+          mockMessages.values = () => [olderMessage, newerMessage].values();
           
           return mockMessages;
         }
@@ -240,6 +253,10 @@ test.describe('HistoricalScraper', () => {
           
           mockMessages.set('msg1', message1);
           mockMessages.set('msg2', message2);
+          
+          // Add Collection-like methods
+          mockMessages.last = () => message2;
+          mockMessages.values = () => [message1, message2].values();
           
           return mockMessages;
         }
