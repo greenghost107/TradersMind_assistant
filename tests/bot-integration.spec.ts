@@ -436,4 +436,47 @@ test.describe('Bot Integration', () => {
     const latestUrl = analysisLinker.getLatestAnalysisUrl('AAPL');
     expect(latestUrl).toBe('https://discord.com/channels/999999999/111111111/newanalysis123');
   });
+
+  test('should ignore thread messages in analysis channels', async () => {
+    // Simulate a thread message in analysis channel
+    const threadMessage = {
+      id: 'thread123',
+      guildId: '999999999',
+      channelId: '111111111', // ANALYSIS_CHANNEL_1_ID
+      content: 'AAPL\nThis is a thread discussion about the analysis, not new analysis itself',
+      author: { bot: false, tag: 'ThreadUser#1234' },
+      createdAt: new Date(),
+      channel: { 
+        id: '111111111',
+        isThread: () => true,  // Key: This indicates it's a thread
+        parentId: '111111111'  // Parent channel ID
+      }
+    } as any;
+
+    // Attempt to index the thread message
+    await analysisLinker.indexMessage(threadMessage);
+    
+    // Verify thread message was NOT indexed (should return null since no analysis was indexed)
+    expect(analysisLinker.getLatestAnalysisUrl('AAPL')).toBeNull();
+    
+    // Now add a proper analysis message in the main channel (not thread)
+    const properAnalysisMessage = {
+      id: 'proper123',
+      guildId: '999999999',
+      channelId: '111111111',
+      content: 'AAPL\nProper analysis in main channel, not in thread',
+      author: { bot: false, tag: 'Analyst#5678' },
+      createdAt: new Date(),
+      channel: { 
+        id: '111111111',
+        isThread: () => false  // Not a thread
+      }
+    } as any;
+
+    await analysisLinker.indexMessage(properAnalysisMessage);
+    
+    // Verify the proper analysis was indexed, not the thread message
+    const analysisUrl = analysisLinker.getLatestAnalysisUrl('AAPL');
+    expect(analysisUrl).toBe('https://discord.com/channels/999999999/111111111/proper123');
+  });
 });
