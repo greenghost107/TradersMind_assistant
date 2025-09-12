@@ -43,6 +43,12 @@ export class AnalysisLinker {
   public async indexMessage(message: Message): Promise<void> {
     if (message.author.bot) return;
 
+    // Skip thread messages in analysis channels
+    if (message.channel && typeof message.channel.isThread === 'function' && message.channel.isThread()) {
+      Logger.debug(`Skipping thread message ${message.id} in analysis channel`);
+      return;
+    }
+
     const firstLine = message.content.split('\n')[0] || '';
     const symbols = this.symbolDetector.detectSymbols(firstLine);
     if (symbols.length === 0) {
