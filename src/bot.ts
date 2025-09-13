@@ -8,6 +8,7 @@ import { AnalysisLinker } from './services/AnalysisLinker';
 import { MessageRetention } from './services/MessageRetention';
 import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
+import { PermissionDiagnostic, DiagnosticReport } from './services/PermissionDiagnostic';
 import { Logger } from './utils/Logger';
 
 class TradersMindBot {
@@ -19,9 +20,11 @@ class TradersMindBot {
   private messageRetention: MessageRetention;
   private ephemeralHandler: EphemeralHandler;
   private historicalScraper: HistoricalScraper;
+  private permissionDiagnostic: PermissionDiagnostic;
   private commands: Collection<string, any>;
   private isInitialized: boolean = false;
   private httpServer: any = null;
+  private latestPermissionReport: DiagnosticReport | null = null;
 
   constructor() {
     this.client = new Client({
@@ -40,6 +43,7 @@ class TradersMindBot {
     this.messageRetention = new MessageRetention();
     this.ephemeralHandler = new EphemeralHandler(this.analysisLinker, this.messageRetention);
     this.historicalScraper = new HistoricalScraper();
+    this.permissionDiagnostic = new PermissionDiagnostic();
     this.channelScanner = new ChannelScanner(
       this.symbolDetector, 
       this.ephemeralHandler,
@@ -55,6 +59,9 @@ class TradersMindBot {
       
       if (this.config) {
         Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}`);
+        
+        // Run permission diagnostics before initialization (non-blocking)
+        this.latestPermissionReport = await this.permissionDiagnostic.runStartupDiagnostics(this.client, this.config);
         
         await this.initializeBot();
         this.startBackgroundServices();
@@ -95,8 +102,14 @@ class TradersMindBot {
       }
     });
 
-    this.client.on(Events.Error, (error) => {
+    this.client.on(Events.Error, async (error) => {
       Logger.error('Discord client error:', error);
+      
+      // Check if this is a permission-related error and re-run diagnostics
+      if (this.isPermissionError(error) && this.config) {
+        Logger.warn('Permission-related Discord error detected - running permission diagnostics...');
+        await this.handlePermissionError();
+      }
     });
 
     process.on('SIGINT', () => {
@@ -141,12 +154,77 @@ class TradersMindBot {
     Logger.info('Background services started');
   }
 
+  private async handlePermissionError(): Promise<void> {
+    try {
+      if (!this.config) return;
+      
+      Logger.info('🔍 Running permission diagnostics due to detected permission error...');
+      const newReport = await this.permissionDiagnostic.runStartupDiagnostics(this.client, this.config);
+      
+      if (newReport && this.latestPermissionReport) {
+        const changes = await this.permissionDiagnostic.detectPermissionChanges(newReport, this.latestPermissionReport);
+        if (changes.length > 0) {
+          Logger.warn('📊 Permission changes detected:');
+          changes.forEach(change => Logger.warn(`  • ${change}`));
+        } else {
+          Logger.info('No permission changes detected - error may be transient');
+        }
+      }
+      
+      this.latestPermissionReport = newReport;
+    } catch (error) {
+      Logger.error('Error during permission diagnostics:', error);
+    }
+  }
+
+  private isPermissionError(error: any): boolean {
+    if (!error || typeof error !== 'object') return false;
+    
+    // Discord API error codes related to permissions
+    const permissionErrorCodes = [
+      50001, // Missing Access
+      50013, // Missing Permissions
+      50021, // Cannot execute action on a system message
+      10003, // Unknown Channel (could indicate permission issue)
+      10008, // Unknown Message (could indicate permission issue)
+    ];
+    
+    // Check for Discord API error codes
+    if (error.code && permissionErrorCodes.includes(error.code)) {
+      return true;
+    }
+    
+    // Check for error messages that indicate permission issues
+    const permissionErrorMessages = [
+      'missing permissions',
+      'missing access', 
+      'insufficient permissions',
+      'permission denied',
+      'forbidden',
+      'cannot send messages',
+      'cannot read message history',
+      'cannot use external emojis'
+    ];
+    
+    const errorMessage = error.message?.toLowerCase() || '';
+    return permissionErrorMessages.some(msg => errorMessage.includes(msg));
+  }
+
   private startHealthCheckServer(): void {
     const app = express();
     const port = process.env.PORT || 10000;
 
     app.get('/health', (req: Request, res: Response) => {
       const stats = this.messageRetention.getRetentionStats();
+      const permissionStatus = this.latestPermissionReport ? {
+        status: this.latestPermissionReport.overallStatus,
+        lastChecked: this.latestPermissionReport.timestamp,
+        accessibleChannels: this.latestPermissionReport.summary.accessibleChannels,
+        totalChannels: this.latestPermissionReport.summary.totalChannels,
+        criticalIssues: this.latestPermissionReport.summary.criticalIssues.length,
+        warnings: this.latestPermissionReport.summary.warnings.length
+      } : null;
+      
       res.json({
         status: 'healthy',
         bot: {
@@ -159,6 +237,7 @@ class TradersMindBot {
           generalChannel: !!this.config.generalNoticesChannel,
           retentionHours: this.config.retentionHours
         } : null,
+        permissions: permissionStatus,
         retention: stats,
         symbolsTracked: this.analysisLinker.getTrackedSymbolsCount(),
         uptime: Math.floor(process.uptime()),

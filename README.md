@@ -40,6 +40,7 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **👻 Ephemeral Interactions**: Private button-based interface for viewing analysis  
 - **🧹 Message Retention**: Configurable automatic cleanup of bot messages
 - **🔗 Direct Message Links**: Provides clickable URLs to Discord analysis messages
+- **🔍 Permission Diagnostics**: Comprehensive startup and runtime permission monitoring
 - **⚙️ Environment-Based Configuration**: Simple setup using environment variables
 - **☁️ Deployment Ready**: No database needed, works on any free tier platform
 
@@ -171,6 +172,103 @@ npm run test:playwright
 # All tests
 npm run test:all
 ```
+
+## 🔍 Permission Diagnostic System
+
+The bot includes a comprehensive permission diagnostic system that helps identify and troubleshoot Discord permission issues:
+
+### 🚀 **Startup Diagnostics** (Non-blocking)
+- **Automatic Execution**: Runs during bot startup without blocking initialization
+- **Complete Permission Analysis**: Traces Discord's permission hierarchy step-by-step
+- **Multi-Channel Support**: Analyzes all configured channels (analysis + general)
+- **Detailed Logging**: Color-coded console output with clear status indicators
+
+### 📊 **Permission Resolution Tracing**
+The system traces Discord's complete permission hierarchy:
+1. **Server Owner** → All permissions automatically granted
+2. **Administrator Role** → All permissions via admin role
+3. **@everyone Guild Permissions** → Base server permissions  
+4. **Role Permissions** → Additional permissions from assigned roles
+5. **Channel @everyone Overrides** → Channel-specific @everyone modifications
+6. **Channel Role Overrides** → Channel-specific role permission overrides  
+7. **User-Specific Overrides** → Direct user permission overrides
+
+### 🎯 **Critical Permission Monitoring**
+Monitors these essential permissions for bot functionality:
+
+**Guild Level:**
+- `ViewChannel` - Access to see channels
+- `SendMessages` - Send button responses  
+- `UseExternalEmojis` - Display emojis in buttons
+
+**Analysis Channels (Read-Only):**
+- `ViewChannel` - Access channel content
+- `ReadMessageHistory` - Scan historical messages
+
+**General Channel (Write Access):**
+- `ViewChannel` - Access channel content
+- `SendMessages` - Reply with buttons
+- `EmbedLinks` - Rich analysis previews  
+- `UseExternalEmojis` - Button emoji labels
+- `ReadMessageHistory` - Access message history
+
+### 🔄 **Runtime Monitoring**
+- **Error Detection**: Automatically triggers diagnostics on Discord API permission errors
+- **Change Detection**: Compares permission states and identifies changes
+- **Health Check Integration**: Permission status available via `/health` endpoint
+- **Non-disruptive**: Continues bot operation regardless of permission issues
+
+### 📋 **Diagnostic Outputs**
+
+#### Console Logging
+```
+✅ Permission Status: HEALTHY
+📊 Guild: Your Server (123456789)
+🤖 Bot: YourBot#1234 (987654321)  
+📁 Channels: 3/3 accessible
+
+🔍 Channel: general-chat (333333333)
+📍 Type: general, Access: ✅
+🔗 Permission Resolution Trace:
+  1. ✅ role: @everyone - Grants: ViewChannel, SendMessages
+  2. ✅ role_override: Bot Role - Grants: UseExternalEmojis
+```
+
+#### Structured Data Export
+- **JSON Files**: Exported to `diagnostics/` directory
+- **Reproduction Data**: Complete configuration for local testing
+- **Latest Report**: Always available as `diagnostics/latest.json`
+- **Timestamped Reports**: Historical diagnostic data with timestamps
+
+#### Health Check Endpoint
+```json
+{
+  "permissions": {
+    "status": "healthy",
+    "lastChecked": "2024-01-15T10:30:00.000Z",
+    "accessibleChannels": 3,
+    "totalChannels": 3,
+    "criticalIssues": 0,
+    "warnings": 0
+  }
+}
+```
+
+### 🚨 **Troubleshooting Guide**
+
+**Bot not posting buttons?**
+1. Check startup logs for permission status
+2. Review `diagnostics/latest.json` for detailed analysis
+3. Look for "CRITICAL ISSUES" in console output
+4. Verify channel-specific permission overrides
+
+**Common Issues:**
+- **Missing UseExternalEmojis**: Buttons won't display emoji correctly
+- **Channel Permission Overrides**: @everyone or role overrides blocking access  
+- **Missing EmbedLinks**: Analysis previews won't display rich formatting
+- **SendMessages Required in Wrong Channel**: Bot only needs SendMessages in general channel, not analysis channels
+
+The diagnostic system ensures you have complete visibility into permission issues without affecting bot performance or reliability.
 
 ## Deployment
 

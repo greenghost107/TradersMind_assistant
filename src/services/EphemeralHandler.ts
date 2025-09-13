@@ -76,6 +76,12 @@ export class EphemeralHandler {
       }
     } catch (error) {
       Logger.error('Failed to send symbol buttons:', error);
+      
+      // Check if this is a permission-related error and trigger diagnostics
+      if (this.isPermissionError(error)) {
+        Logger.warn('Permission error detected during button creation - this may indicate permission changes');
+        // Note: Permission re-check would be triggered by the bot's error handler
+      }
     }
   }
 
@@ -162,6 +168,11 @@ export class EphemeralHandler {
     } catch (error) {
       Logger.error('Error handling button interaction:', error);
       
+      // Check if this is a permission-related error
+      if (this.isPermissionError(error)) {
+        Logger.warn('Permission error detected during button interaction - this may indicate permission changes');
+      }
+      
       const errorMessage = interaction.deferred 
         ? { content: 'An error occurred while fetching analysis data.' }
         : { content: 'An error occurred while fetching analysis data.', ephemeral: true };
@@ -214,6 +225,40 @@ export class EphemeralHandler {
     return {
       totalTracked: this.ephemeralTracking.size
     };
+  }
+
+  private isPermissionError(error: any): boolean {
+    if (!error || typeof error !== 'object') return false;
+    
+    // Discord API error codes related to permissions
+    const permissionErrorCodes = [
+      50001, // Missing Access
+      50013, // Missing Permissions
+      50021, // Cannot execute action on a system message
+      10003, // Unknown Channel (could indicate permission issue)
+      10008, // Unknown Message (could indicate permission issue)
+      20022, // This interaction has already been acknowledged
+    ];
+    
+    // Check for Discord API error codes
+    if (error.code && permissionErrorCodes.includes(error.code)) {
+      return true;
+    }
+    
+    // Check for error messages that indicate permission issues
+    const permissionErrorMessages = [
+      'missing permissions',
+      'missing access',
+      'insufficient permissions',
+      'permission denied',
+      'forbidden',
+      'cannot send messages',
+      'cannot read message history',
+      'cannot use external emojis'
+    ];
+    
+    const errorMessage = error.message?.toLowerCase() || '';
+    return permissionErrorMessages.some(msg => errorMessage.includes(msg));
   }
 
   public performFinalCleanup(): void {

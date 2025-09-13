@@ -18,6 +18,9 @@ build/
 # Data files
 data/
 
+# Diagnostic reports
+diagnostics/
+
 # IDE files
 .vscode/
 .idea/
@@ -52,4 +55,7 @@ coverage/
 
 *.png
 *.txt
+
+# Playwright test outputs
 playwright-report/
+test-results/
