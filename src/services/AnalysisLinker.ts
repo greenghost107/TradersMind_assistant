@@ -61,6 +61,15 @@ export class AnalysisLinker {
     Logger.analysis(`Indexing message ${message.id}: symbols=${symbols.map(s => s.symbol).join(', ')}, charts=${extractedUrls.chartUrls.length}, attachments=${extractedUrls.attachmentUrls.length}`);
     
     const symbolStrings = symbols.map(s => s.symbol);
+    const relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
+    
+    // Skip messages with low relevance (likely ticker-only messages)
+    const MIN_RELEVANCE_THRESHOLD = 0.6;
+    if (relevanceScore < MIN_RELEVANCE_THRESHOLD) {
+      Logger.debug(`Skipping low relevance message ${message.id}: score=${relevanceScore}, content="${message.content.slice(0, 100)}..."`);
+      return;
+    }
+    
     const analysisData: AnalysisData = {
       messageId: message.id,
       channelId: message.channel.id,
@@ -68,7 +77,7 @@ export class AnalysisLinker {
       content: message.content,
       symbols: symbolStrings,
       timestamp: message.createdAt,
-      relevanceScore: this.calculateRelevanceScore(message.content, symbols.length),
+      relevanceScore: relevanceScore,
       messageUrl,
       chartUrls: extractedUrls.chartUrls,
       attachmentUrls: extractedUrls.attachmentUrls,

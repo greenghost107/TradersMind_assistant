@@ -198,6 +198,11 @@ test.describe('HistoricalScraper', () => {
           };
           
           mockMessages.set('msg1', message);
+          
+          // Add Collection-like methods
+          mockMessages.last = () => message;
+          mockMessages.values = () => [message].values();
+          
           return mockMessages;
         }
       }
@@ -341,6 +346,10 @@ test.describe('HistoricalScraper', () => {
           
           mockMessages.set('old', oldMessage);
           mockMessages.set('recent', recentMessage);
+          
+          // Add Collection-like methods
+          mockMessages.last = () => recentMessage;
+          mockMessages.values = () => [oldMessage, recentMessage].values();
           
           return mockMessages;
         }
