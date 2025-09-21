@@ -53,8 +53,8 @@ export class EphemeralHandler {
       
       const button = new ButtonBuilder()
         .setCustomId(`symbol_${symbol.symbol}_${message.id}`)
-        .setLabel(`📊 $${symbol.symbol}`)
-        .setStyle(ButtonStyle.Secondary);
+        .setLabel(this.getButtonLabel(symbol))
+        .setStyle(this.getButtonStyle(symbol.priority));
       
       currentRow.addComponents(button);
       buttonsInRow++;
@@ -218,6 +218,30 @@ export class EphemeralHandler {
 
     if (cleaned > 0) {
       Logger.info(`Cleaned up ${cleaned} expired ephemeral interactions`);
+    }
+  }
+
+  private getButtonLabel(symbol: StockSymbol): string {
+    switch (symbol.priority) {
+      case 'top_long':
+        return `🟢 $${symbol.symbol}`;
+      case 'top_short':
+        return `🔴 $${symbol.symbol}`;
+      case 'regular':
+      default:
+        return `📊 $${symbol.symbol}`;
+    }
+  }
+
+  private getButtonStyle(priority: 'top_long' | 'top_short' | 'regular'): ButtonStyle {
+    switch (priority) {
+      case 'top_long':
+        return ButtonStyle.Success;
+      case 'top_short':
+        return ButtonStyle.Danger;
+      case 'regular':
+      default:
+        return ButtonStyle.Secondary;
     }
   }
 
