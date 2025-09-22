@@ -63,10 +63,13 @@ export class AnalysisLinker {
     const symbolStrings = symbols.map(s => s.symbol);
     const relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
     
+    // Enhanced logging for debugging indexing decisions
+    Logger.debug(`Message ${message.id} analysis: symbols=${symbols.length}, score=${relevanceScore.toFixed(3)}, length=${message.content.length}, content="${message.content.slice(0, 80)}..."`);
+    
     // Skip messages with low relevance (likely ticker-only messages)
-    const MIN_RELEVANCE_THRESHOLD = 0.6;
+    const MIN_RELEVANCE_THRESHOLD = 0.7;
     if (relevanceScore < MIN_RELEVANCE_THRESHOLD) {
-      Logger.debug(`Skipping low relevance message ${message.id}: score=${relevanceScore}, content="${message.content.slice(0, 100)}..."`);
+      Logger.debug(`❌ Rejected message ${message.id}: relevance score ${relevanceScore.toFixed(3)} below threshold ${MIN_RELEVANCE_THRESHOLD}`);
       return;
     }
     
@@ -153,9 +156,19 @@ export class AnalysisLinker {
   }
 
   private calculateRelevanceScore(content: string, symbolCount: number): number {
-    let score = 0.5;
+    let score = 0.3; // Lower base score to require actual analysis content
     
     const lowerContent = content.toLowerCase();
+    
+    // Check for symbol list patterns (major penalty)
+    if (this.isSymbolList(content)) {
+      Logger.debug(`📋 Symbol list pattern detected: "${content.slice(0, 100)}..."`);
+      return 0.1; // Very low score for obvious symbol lists
+    }
+    
+    // Check symbol density (symbol-to-content ratio)
+    const symbolDensityPenalty = this.calculateSymbolDensityPenalty(content, symbolCount);
+    score -= symbolDensityPenalty;
     
     const strongKeywords = ['analysis', 'target', 'price target', 'bullish', 'bearish', 'recommendation'];
     const mediumKeywords = ['chart', 'technical', 'support', 'resistance', 'breakout', 'trend'];
@@ -179,17 +192,91 @@ export class AnalysisLinker {
       }
     }
     
+    // Content length bonus (meaningful analysis should be longer)
     if (content.length > 200) {
       score += 0.1;
     }
+    if (content.length > 400) {
+      score += 0.1;
+    }
     
+    // Symbol count scoring (favor fewer symbols for focused analysis)
     if (symbolCount === 1) {
       score += 0.2;
     } else if (symbolCount <= 3) {
       score += 0.1;
+    } else if (symbolCount <= 5) {
+      // Neutral - no bonus or penalty
+    } else {
+      // Penalty for many symbols (likely lists or unfocused content)
+      score -= (symbolCount - 5) * 0.05;
     }
     
-    return Math.min(score, 1.0);
+    return Math.max(0, Math.min(score, 1.0));
+  }
+  
+  private isSymbolList(content: string): boolean {
+    // Detect common list patterns
+    const listPatterns = [
+      /[A-Z]{1,5}\s*\/\s*[A-Z]{1,5}/, // "AAPL / TSLA"
+      /[A-Z]{1,5}\s*,\s*[A-Z]{1,5}/, // "AAPL, TSLA"
+      /[A-Z]{1,5}\s*\|\s*[A-Z]{1,5}/, // "AAPL | TSLA"
+    ];
+    
+    for (const pattern of listPatterns) {
+      const matches = content.match(new RegExp(pattern.source, 'g'));
+      if (matches && matches.length >= 3) { // Need at least 3 separator instances
+        const totalLength = content.length;
+        const symbolMatches = content.match(/\b[A-Z]{1,5}\b/g) || [];
+        
+        // Check if we have many symbols with separators
+        if (symbolMatches.length >= 5) {
+          // Check if symbols make up a large portion of the content
+          const symbolChars = symbolMatches.join('').length;
+          const separatorChars = matches.length * 3; // Approximate separator chars
+          const symbolAndSeparatorChars = symbolChars + separatorChars;
+          const ratio = symbolAndSeparatorChars / totalLength;
+          
+          if (ratio > 0.3) { // More than 30% of content is symbols and separators
+            return true;
+          }
+        }
+      }
+    }
+    
+    // Additional check: look for sequences of symbols with minimal text
+    const symbolMatches = content.match(/\b[A-Z]{1,5}\b/g) || [];
+    if (symbolMatches.length >= 6) {
+      const words = content.trim().split(/\s+/).filter(word => 
+        word.length > 0 && !/^[A-Z]{1,5}$/.test(word) && !/^[\/,\|]$/.test(word)
+      );
+      const nonSymbolWords = words.length;
+      const wordsPerSymbol = nonSymbolWords / symbolMatches.length;
+      
+      // If there are very few non-symbol words per symbol, likely a list
+      if (wordsPerSymbol < 1.5) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  private calculateSymbolDensityPenalty(content: string, symbolCount: number): number {
+    if (symbolCount <= 3) return 0; // No penalty for small symbol counts
+    
+    // Calculate words per symbol ratio
+    const words = content.trim().split(/\s+/).filter(word => word.length > 0);
+    const wordsPerSymbol = words.length / symbolCount;
+    
+    // Penalize if there are very few words per symbol (indicates list-like content)
+    if (wordsPerSymbol < 3) {
+      return 0.3; // Heavy penalty for very dense symbol content
+    } else if (wordsPerSymbol < 5) {
+      return 0.1; // Light penalty for somewhat dense content
+    }
+    
+    return 0; // No penalty for well-balanced content
   }
 
   private isRecentEnough(timestamp: Date): boolean {
