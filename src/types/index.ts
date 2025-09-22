@@ -9,6 +9,7 @@ export interface StockSymbol {
   symbol: string;
   confidence: number;
   position: number;
+  priority: 'top_long' | 'top_short' | 'regular';
 }
 
 export interface AnalysisData {
