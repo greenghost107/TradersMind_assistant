@@ -120,7 +120,7 @@ Regular symbols: NVDA INTC AMD CRM ORCL ADBE
 More symbols: GOOGL META NFLX
     `;
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
     
     // Top long picks should appear first
     expect(symbols.slice(0, 3).map(s => s.symbol)).toEqual(
@@ -143,7 +143,7 @@ More symbols: GOOGL META NFLX
 Regular symbols: NVDA INTC AMD CRM ORCL ADBE NOW SNOW COIN SQ PYPL SHOP ROKU ZM DOCU OKTA DDOG NET CRWD S MDB ESTC TEAM ZS PANW UBER LYFT ABNB DIS NFLX
     `;
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
     
     // Should return exactly 25 symbols (Discord button limit)
     expect(symbols).toHaveLength(25);
@@ -165,7 +165,7 @@ Regular symbols: NVDA INTC AMD CRM ORCL ADBE NOW SNOW COIN SQ PYPL SHOP ROKU ZM 
   test('should assign regular priority when no top picks present', () => {
     const message = 'Analysis for AAPL TSLA MSFT without top picks section';
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
     
     expect(symbols).toHaveLength(3);
     expect(symbols.every(s => s.priority === 'regular')).toBe(true);
@@ -180,9 +180,9 @@ Regular symbols: NVDA INTC AMD CRM ORCL ADBE NOW SNOW COIN SQ PYPL SHOP ROKU ZM 
 Regular: $NVDA GOOGL
     `;
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
     
-    // Within top_long group, $AAPL should have higher confidence than TSLA
+    // All top picks should have confidence 1.0 and position 0
     const topLongs = symbols.filter(s => s.priority === 'top_long');
     const aaplSymbol = topLongs.find(s => s.symbol === 'AAPL');
     const tslaSymbol = topLongs.find(s => s.symbol === 'TSLA');
@@ -192,10 +192,10 @@ Regular: $NVDA GOOGL
     expect(tslaSymbol).toBeDefined();
     expect(msftSymbol).toBeDefined();
     
-    // $AAPL should have highest confidence due to $ prefix
-    expect(aaplSymbol!.confidence).toBeGreaterThan(tslaSymbol!.confidence);
-    // #MSFT should have higher confidence than plain TSLA due to # prefix
-    expect(msftSymbol!.confidence).toBeGreaterThan(tslaSymbol!.confidence);
+    // All top picks get confidence 1.0
+    expect(aaplSymbol!.confidence).toBe(1.0);
+    expect(tslaSymbol!.confidence).toBe(1.0);
+    expect(msftSymbol!.confidence).toBe(1.0);
   });
 
   test('should handle case where top picks exactly fill 25 button limit', () => {
@@ -215,7 +215,7 @@ Regular: $NVDA GOOGL
 Regular symbols: NOW SNOW COIN SQ PYPL SHOP
     `;
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
     
     // Should return exactly 25 symbols
     expect(symbols).toHaveLength(25);
@@ -238,27 +238,27 @@ Regular symbols: NOW SNOW COIN SQ PYPL SHOP
   test('should deduplicate symbols appearing in both top picks and regular text', () => {
     const message = `
 ❕ טופ פיקס:
-📈 long: AAPL , TSLA
+📈 long: AAPL , TSLA , AAPL
 📉 short: SPY
 
 Regular analysis mentions AAPL and TSLA again, plus MSFT
     `;
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
     
-    // Should not have duplicates
+    // Should not have duplicates (AAPL listed twice in top picks)
     const symbolStrings = symbols.map(s => s.symbol);
     const uniqueSymbols = [...new Set(symbolStrings)];
     expect(symbolStrings).toHaveLength(uniqueSymbols.length);
     
-    // AAPL and TSLA should have top pick priority, not regular
+    // AAPL and TSLA should have top pick priority
     const aaplSymbol = symbols.find(s => s.symbol === 'AAPL');
     const tslaSymbol = symbols.find(s => s.symbol === 'TSLA');
-    const msftSymbol = symbols.find(s => s.symbol === 'MSFT');
+    const spySymbol = symbols.find(s => s.symbol === 'SPY');
     
     expect(aaplSymbol?.priority).toBe('top_long');
     expect(tslaSymbol?.priority).toBe('top_long');
-    expect(msftSymbol?.priority).toBe('regular');
+    expect(spySymbol?.priority).toBe('top_short');
   });
 
   test('should sort by priority first, then confidence', () => {
@@ -270,17 +270,17 @@ Regular analysis mentions AAPL and TSLA again, plus MSFT
 High confidence regular symbol: $NVDA
     `;
 
-    const symbols = symbolDetector.detectSymbols(message);
+    const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
     
-    // Despite $NVDA having higher confidence due to $ prefix,
-    // top picks should still come first
+    // detectSymbolsFromTopPicks only returns top picks
+    // top_long comes first, then top_short
     expect(symbols[0].priority).toBe('top_long');
     expect(symbols[0].symbol).toBe('PLTR');
     
     expect(symbols[1].priority).toBe('top_short');
     expect(symbols[1].symbol).toBe('SPY');
     
-    expect(symbols[2].priority).toBe('regular');
-    expect(symbols[2].symbol).toBe('NVDA');
+    // Regular symbols are not returned by detectSymbolsFromTopPicks
+    expect(symbols).toHaveLength(2);
   });
 });

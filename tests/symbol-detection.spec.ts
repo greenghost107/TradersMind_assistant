@@ -121,7 +121,7 @@ test.describe('Analysis Linking', () => {
       id: '123456789',
       guildId: '987654321',
       channelId: '456789123',
-      content: 'AAPL\nThis mentions TSLA but it should not be indexed',
+      content: 'AAPL\nDetailed analysis content here. This mentions TSLA but it should not be indexed since TSLA is not in the first line.',
       author: { bot: false, tag: 'TestUser#1234' },
       createdAt: new Date(),
       channel: { id: '456789123' }
