@@ -38,4 +38,14 @@ export interface RetentionJob {
   channelId: string;
   createdAt: Date;
   deleteAt: Date;
+  groupId?: string;
+  isGrouped?: boolean;
+}
+
+export interface MessageGroup {
+  groupId: string;
+  messageIds: string[];
+  channelId: string;
+  createdAt: Date;
+  symbolCount: number;
 }
