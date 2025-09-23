@@ -10,10 +10,34 @@ export class SymbolDetector {
     this.topPicksParser = new TopPicksParser();
   }
 
-  public detectSymbols(content: string): StockSymbol[] {
-    // First, parse top picks to identify priority symbols
+  public detectSymbolsFromTopPicks(content: string): StockSymbol[] {
+    // Parse top picks section for general notices channel
     const topPicks = this.topPicksParser.parseTopPicks(content);
     
+    const symbols: StockSymbol[] = [];
+    
+    // Add all top picks directly to symbols array with high confidence
+    for (const symbol of topPicks.longPicks) {
+      Logger.debug(`Adding top long pick: ${symbol}`);
+      symbols.push({ symbol, confidence: 1.0, position: 0, priority: 'top_long' });
+    }
+    
+    for (const symbol of topPicks.shortPicks) {
+      Logger.debug(`Adding top short pick: ${symbol}`);
+      symbols.push({ symbol, confidence: 1.0, position: 0, priority: 'top_short' });
+    }
+
+    const finalSymbols = this.deduplicateAndSort(symbols);
+    
+    const priorityStats = this.getPriorityStats(finalSymbols);
+    Logger.debug(`Detected top picks: ${finalSymbols.map(s => s.symbol).join(', ')}`);
+    Logger.debug(`Priority breakdown: ${priorityStats.top_long} long, ${priorityStats.top_short} short`);
+    
+    return finalSymbols;
+  }
+
+  public detectSymbolsFromAnalysis(content: string): StockSymbol[] {
+    // Use regex pattern matching for analysis channels (no top picks)
     const symbols: StockSymbol[] = [];
     const matches = content.matchAll(SYMBOL_PATTERN);
     
@@ -23,18 +47,20 @@ export class SymbolDetector {
       
       if (this.isValidSymbol(symbol)) {
         const confidence = this.calculateConfidence(symbol, content, position);
-        const priority = this.determineSymbolPriority(symbol, topPicks);
-        symbols.push({ symbol, confidence, position, priority });
+        symbols.push({ symbol, confidence, position, priority: 'regular' });
       }
     }
 
     const finalSymbols = this.deduplicateAndSort(symbols);
-    
-    const priorityStats = this.getPriorityStats(finalSymbols);
-    Logger.debug(`Detected symbols: ${finalSymbols.map(s => s.symbol).join(', ')}`);
-    Logger.debug(`Priority breakdown: ${priorityStats.top_long} long, ${priorityStats.top_short} short, ${priorityStats.regular} regular`);
+    Logger.debug(`Detected analysis symbols: ${finalSymbols.map(s => s.symbol).join(', ')}`);
     
     return finalSymbols;
+  }
+
+  // Deprecated: Use detectSymbolsFromTopPicks or detectSymbolsFromAnalysis instead
+  public detectSymbols(content: string): StockSymbol[] {
+    // For backward compatibility, default to analysis detection
+    return this.detectSymbolsFromAnalysis(content);
   }
 
   private isValidSymbol(symbol: string): boolean {

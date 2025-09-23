@@ -7,7 +7,7 @@ import {
   EmbedBuilder,
   Colors
 } from 'discord.js';
-import { StockSymbol, EphemeralInteraction } from '../types';
+import { StockSymbol, EphemeralInteraction, MessageGroup } from '../types';
 import { AnalysisLinker } from './AnalysisLinker';
 import { MessageRetention } from './MessageRetention';
 import { MAX_DISCORD_BUTTONS } from '../config';
@@ -15,6 +15,7 @@ import { Logger } from '../utils/Logger';
 
 export class EphemeralHandler {
   private ephemeralTracking: Map<string, EphemeralInteraction> = new Map();
+  private messageGroups: Map<string, MessageGroup> = new Map();
 
   constructor(
     private analysisLinker: AnalysisLinker,
@@ -27,43 +28,44 @@ export class EphemeralHandler {
     message: Message, 
     symbols: StockSymbol[]
   ): Promise<void> {
-    const symbolsWithAnalysis = symbols.filter(symbol => 
-      this.analysisLinker.hasAnalysisFor(symbol.symbol)
-    );
+    // Trust ChannelScanner filtering - all symbols passed here should get buttons
+    const symbolsForButtons = symbols;
     
-    if (symbolsWithAnalysis.length === 0) {
-      Logger.debug(`No symbols with available analysis data found in message ${message.id}`);
+    if (symbolsForButtons.length === 0) {
+      Logger.debug(`No symbols provided for button creation in message ${message.id}`);
       return;
     }
     
-    Logger.debug(`Filtered ${symbols.length} symbols down to ${symbolsWithAnalysis.length} symbols with analysis data`);
+    const topPicksCount = symbolsForButtons.filter(s => s.priority === 'top_long' || s.priority === 'top_short').length;
+    const regularCount = symbolsForButtons.filter(s => s.priority === 'regular').length;
+    Logger.debug(`Button creation: ${symbolsForButtons.length} symbols (${topPicksCount} top picks, ${regularCount} regular)`);
     
-    const limitedSymbols = symbolsWithAnalysis.slice(0, MAX_DISCORD_BUTTONS);
-    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    // Split symbols into chunks of 25 to match Discord's button limit (5 rows × 5 buttons)
+    const SYMBOLS_PER_MESSAGE = 20;
+    const symbolChunks = this.chunkSymbols(symbolsForButtons, SYMBOLS_PER_MESSAGE);
     
-    let currentRow = new ActionRowBuilder<ButtonBuilder>();
-    let buttonsInRow = 0;
-    
-    for (const symbol of limitedSymbols) {
-      if (buttonsInRow >= 5) {
-        rows.push(currentRow);
-        currentRow = new ActionRowBuilder<ButtonBuilder>();
-        buttonsInRow = 0;
-      }
-      
-      const button = new ButtonBuilder()
-        .setCustomId(`symbol_${symbol.symbol}_${message.id}`)
-        .setLabel(this.getButtonLabel(symbol))
-        .setStyle(this.getButtonStyle(symbol.priority));
-      
-      currentRow.addComponents(button);
-      buttonsInRow++;
+    if (symbolChunks.length === 1) {
+      // Single message - existing behavior
+      Logger.debug(`Creating single button message with ${symbolsForButtons.length} symbols`);
+      await this.createSingleButtonMessage(message, symbolChunks[0]!);
+    } else {
+      // Multiple messages - new grouped behavior
+      Logger.info(`Splitting ${symbolsForButtons.length} symbols into ${symbolChunks.length} messages (${SYMBOLS_PER_MESSAGE} symbols per message)`);
+      await this.createGroupedButtonMessages(message, symbolChunks);
     }
-    
-    if (buttonsInRow > 0) {
-      rows.push(currentRow);
-    }
+  }
 
+  private chunkSymbols(symbols: StockSymbol[], chunkSize: number): StockSymbol[][] {
+    const chunks: StockSymbol[][] = [];
+    for (let i = 0; i < symbols.length; i += chunkSize) {
+      chunks.push(symbols.slice(i, i + chunkSize));
+    }
+    return chunks;
+  }
+
+  private async createSingleButtonMessage(message: Message, symbols: StockSymbol[]): Promise<void> {
+    const rows = this.createButtonRows(symbols, message.id);
+    
     try {
       const botMessage = await message.reply({
         components: rows,
@@ -77,12 +79,94 @@ export class EphemeralHandler {
     } catch (error) {
       Logger.error('Failed to send symbol buttons:', error);
       
-      // Check if this is a permission-related error and trigger diagnostics
       if (this.isPermissionError(error)) {
         Logger.warn('Permission error detected during button creation - this may indicate permission changes');
-        // Note: Permission re-check would be triggered by the bot's error handler
       }
     }
+  }
+
+  private async createGroupedButtonMessages(message: Message, symbolChunks: StockSymbol[][]): Promise<void> {
+    const groupId = `group_${message.id}_${Date.now()}`;
+    const messageIds: string[] = [];
+    
+    try {
+      for (let i = 0; i < symbolChunks.length; i++) {
+        const chunk = symbolChunks[i]!;
+        const rows = this.createButtonRows(chunk, message.id, i);
+        
+        const content = i === 0 
+          ? `📊 Top Picks (Part ${i + 1}/${symbolChunks.length})`
+          : `📊 Top Picks (Part ${i + 1}/${symbolChunks.length})`;
+        
+        const botMessage = await message.reply({
+          content,
+          components: rows,
+          allowedMentions: { repliedUser: false }
+        });
+        
+        if (botMessage) {
+          messageIds.push(botMessage.id);
+          
+          // Add to retention with group information
+          if (this.messageRetention) {
+            this.messageRetention.addMessageForRetention(botMessage, undefined, groupId);
+          }
+        }
+        
+        // Small delay between messages to avoid rate limits
+        if (i < symbolChunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // Store group information
+      const totalSymbols = symbolChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const messageGroup: MessageGroup = {
+        groupId,
+        messageIds,
+        channelId: message.channel.id,
+        createdAt: new Date(),
+        symbolCount: totalSymbols
+      };
+      
+      this.messageGroups.set(groupId, messageGroup);
+      Logger.debug(`Created message group ${groupId} with ${messageIds.length} messages for ${totalSymbols} symbols`);
+      
+    } catch (error) {
+      Logger.error('Failed to send grouped symbol buttons:', error);
+      
+      if (this.isPermissionError(error)) {
+        Logger.warn('Permission error detected during grouped button creation - this may indicate permission changes');
+      }
+    }
+  }
+
+  private createButtonRows(symbols: StockSymbol[], originalMessageId: string, chunkIndex: number = 0): ActionRowBuilder<ButtonBuilder>[] {
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    let currentRow = new ActionRowBuilder<ButtonBuilder>();
+    let buttonsInRow = 0;
+    
+    for (const symbol of symbols) {
+      if (buttonsInRow >= 5) {
+        rows.push(currentRow);
+        currentRow = new ActionRowBuilder<ButtonBuilder>();
+        buttonsInRow = 0;
+      }
+      
+      const button = new ButtonBuilder()
+        .setCustomId(`symbol_${symbol.symbol}_${originalMessageId}_${chunkIndex}`)
+        .setLabel(this.getButtonLabel(symbol))
+        .setStyle(this.getButtonStyle(symbol.priority));
+      
+      currentRow.addComponents(button);
+      buttonsInRow++;
+    }
+    
+    if (buttonsInRow > 0) {
+      rows.push(currentRow);
+    }
+    
+    return rows;
   }
 
   public async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
@@ -90,7 +174,16 @@ export class EphemeralHandler {
       return;
     }
 
-    const [, symbol, messageId] = interaction.customId.split('_');
+    const parts = interaction.customId.split('_');
+    if (parts.length < 3) {
+      await interaction.reply({ 
+        content: 'Invalid button interaction.', 
+        ephemeral: true 
+      });
+      return;
+    }
+
+    const [, symbol, messageId] = parts;
     if (!symbol || !messageId) {
       await interaction.reply({ 
         content: 'Invalid button interaction.', 
@@ -114,11 +207,25 @@ export class EphemeralHandler {
 
       const analyses = await this.analysisLinker.getLatestAnalysis(symbol, 1);
       const latestUrl = this.analysisLinker.getLatestAnalysisUrl(symbol);
+      Logger.debug(`Button clicked for ${symbol}: latestUrl=${latestUrl}, analysesCount=${analyses.length}`);
 
       if (analyses.length === 0) {
-        await interaction.editReply({
-          content: `📊 **$${symbol}**\n\n❌ No recent analysis found for this symbol.`
-        });
+        // Check if this is a top pick symbol (based on button style)
+        const channel = interaction.client.channels.cache.get(interaction.channelId);
+        const originalMessage = channel && 'messages' in channel 
+          ? await channel.messages.fetch(messageId).catch(() => null)
+          : null;
+        const isTopPick = originalMessage && symbol && this.isTopPicksSymbol(originalMessage, symbol);
+        
+        if (isTopPick) {
+          await interaction.editReply({
+            content: `🌟 **$${symbol}** - Top Pick\n\n📋 This symbol is featured in today's top picks but doesn't have recent analysis data available.\n\n💡 Consider this a curated selection for further research!`
+          });
+        } else {
+          await interaction.editReply({
+            content: `📊 **$${symbol}**\n\n❌ No recent analysis found for this symbol.`
+          });
+        }
         return;
       }
 
@@ -135,7 +242,10 @@ export class EphemeralHandler {
 
       // Add latest analysis URL as a prominent link if available
       if (latestUrl) {
+        Logger.debug(`Setting embed URL to: ${latestUrl}`);
         embed.setURL(latestUrl);
+      } else {
+        Logger.debug(`No latestUrl available for ${symbol}, embed URL will not be set`);
       }
 
       // Create a short preview of the analysis content (max ~200 characters)
@@ -146,6 +256,7 @@ export class EphemeralHandler {
       let description = `**${channelName}** • ${timeAgo}\n\n${shortPreview}\n\n`;
       
       const messageUrl = latestAnalysis.messageUrl || `https://discord.com/channels/${interaction.guildId}/${latestAnalysis.channelId}/${latestAnalysis.messageId}`;
+      Logger.debug(`Message URL for ${symbol}: stored=${latestAnalysis.messageUrl}, fallback=https://discord.com/channels/${interaction.guildId}/${latestAnalysis.channelId}/${latestAnalysis.messageId}, final=${messageUrl}`);
       description += `[View Original Message](${messageUrl})`;
 
       embed.setDescription(description);
@@ -290,10 +401,46 @@ export class EphemeralHandler {
     
     const startTime = Date.now();
     const totalTracked = this.ephemeralTracking.size;
+    const totalGroups = this.messageGroups.size;
     
     this.ephemeralTracking.clear();
+    this.messageGroups.clear();
     
     const duration = Date.now() - startTime;
-    Logger.info(`Ephemeral final cleanup complete: ${totalTracked} interactions cleared (${duration}ms)`);
+    Logger.info(`Ephemeral final cleanup complete: ${totalTracked} interactions cleared, ${totalGroups} groups cleared (${duration}ms)`);
+  }
+
+  public getMessageGroup(groupId: string): MessageGroup | undefined {
+    return this.messageGroups.get(groupId);
+  }
+
+  public getAllMessageGroups(): MessageGroup[] {
+    return Array.from(this.messageGroups.values());
+  }
+
+  private isTopPicksSymbol(message: Message, symbol: string): boolean {
+    // Check if the original message contains top picks section with this symbol
+    const content = message.content.toLowerCase();
+    const symbolUpper = symbol.toUpperCase();
+    
+    // Look for Hebrew "טופ פיקס" or English "top picks" patterns
+    const topPicksPatterns = [
+      /טופ פיקס.*?(?:long|short).*?:/gi,
+      /top\s*picks.*?(?:long|short).*?:/gi
+    ];
+    
+    for (const pattern of topPicksPatterns) {
+      const matches = message.content.match(pattern);
+      if (matches) {
+        // Check if symbol appears after the top picks section
+        const topPicksIndex = message.content.search(pattern);
+        const remainingContent = message.content.slice(topPicksIndex);
+        if (remainingContent.includes(symbolUpper)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
 }

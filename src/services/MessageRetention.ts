@@ -1,8 +1,9 @@
 import { Client, Message, TextChannel } from 'discord.js';
-import { RetentionJob, BotConfig } from '../types';
+import { RetentionJob, BotConfig, MessageGroup } from '../types';
 
 export class MessageRetention {
   private retentionJobs: Map<string, RetentionJob> = new Map();
+  private groupedJobs: Map<string, string[]> = new Map(); // groupId -> messageIds
   private cleanupInterval: NodeJS.Timeout | null = null;
   private config: BotConfig | null = null;
   private client: Client | null = null;
@@ -20,7 +21,7 @@ export class MessageRetention {
     }
   }
 
-  public addMessageForRetention(message: Message, retentionHours?: number): void {
+  public addMessageForRetention(message: Message, retentionHours?: number, groupId?: string): void {
     const effectiveRetentionHours = retentionHours || this.config?.retentionHours || 26;
     
     // In debug mode, treat hours as seconds for faster testing
@@ -34,8 +35,18 @@ export class MessageRetention {
       messageId: message.id,
       channelId: message.channel.id,
       createdAt: message.createdAt,
-      deleteAt
+      deleteAt,
+      ...(groupId && { groupId }),
+      ...(groupId && { isGrouped: true })
     };
+
+    // Track grouped messages
+    if (groupId) {
+      if (!this.groupedJobs.has(groupId)) {
+        this.groupedJobs.set(groupId, []);
+      }
+      this.groupedJobs.get(groupId)!.push(message.id);
+    }
 
     this.retentionJobs.set(message.id, job);
     
@@ -81,19 +92,40 @@ export class MessageRetention {
 
     const now = new Date();
     const expiredJobs: RetentionJob[] = [];
+    const processedGroups = new Set<string>();
     
     if (this.isDebugMode) {
       console.log(`🔧 [DEBUG] Running cleanup check at ${now.toLocaleTimeString()}, ${this.retentionJobs.size} pending jobs`);
     }
     
+    // Collect expired jobs and group information
     for (const [messageId, job] of this.retentionJobs.entries()) {
       if (now >= job.deleteAt) {
         expiredJobs.push(job);
         this.retentionJobs.delete(messageId);
         
+        // If this job is part of a group, mark the entire group for processing
+        if (job.groupId && !processedGroups.has(job.groupId)) {
+          processedGroups.add(job.groupId);
+          
+          // Find and mark all messages in this group as expired
+          const groupMessageIds = this.groupedJobs.get(job.groupId) || [];
+          for (const groupMessageId of groupMessageIds) {
+            const groupJob = this.retentionJobs.get(groupMessageId);
+            if (groupJob && !expiredJobs.some(ej => ej.messageId === groupMessageId)) {
+              expiredJobs.push(groupJob);
+              this.retentionJobs.delete(groupMessageId);
+            }
+          }
+          
+          // Clean up group tracking
+          this.groupedJobs.delete(job.groupId);
+        }
+        
         if (this.isDebugMode) {
           const ageMs = now.getTime() - job.deleteAt.getTime();
-          console.log(`🔧 [DEBUG] Found expired job: ${messageId} (${ageMs}ms overdue)`);
+          const groupInfo = job.groupId ? ` (group: ${job.groupId})` : '';
+          console.log(`🔧 [DEBUG] Found expired job: ${messageId}${groupInfo} (${ageMs}ms overdue)`);
         }
       }
     }
@@ -110,7 +142,9 @@ export class MessageRetention {
       return;
     }
 
-    console.log(`🧹 Processing ${expiredJobs.length} expired messages for cleanup`);
+    const groupedJobs = expiredJobs.filter(job => job.isGrouped).length;
+    const singleJobs = expiredJobs.length - groupedJobs;
+    console.log(`🧹 Processing ${expiredJobs.length} expired messages for cleanup (${singleJobs} individual, ${groupedJobs} grouped)`);
 
     let deletedCount = 0;
     let errorCount = 0;

@@ -56,9 +56,9 @@ test.describe('Smart Button Filtering', () => {
     } as any;
 
     const symbols = [
-      { symbol: 'AAPL', confidence: 0.8, position: 10 },
-      { symbol: 'TSLA', confidence: 0.7, position: 20 },
-      { symbol: 'MSFT', confidence: 0.6, position: 30 }
+      { symbol: 'AAPL', confidence: 0.8, position: 10, priority: 'regular' as const },
+      { symbol: 'TSLA', confidence: 0.7, position: 20, priority: 'regular' as const },
+      { symbol: 'MSFT', confidence: 0.6, position: 30, priority: 'regular' as const }
     ];
 
     await ephemeralHandler.createSymbolButtons(mockMessage, symbols);
@@ -84,9 +84,9 @@ test.describe('Smart Button Filtering', () => {
     } as any;
 
     const symbols = [
-      { symbol: 'UNKNOWN', confidence: 0.8, position: 10 },
-      { symbol: 'FAKE', confidence: 0.7, position: 20 },
-      { symbol: 'INVALID', confidence: 0.6, position: 30 }
+      { symbol: 'UNKNOWN', confidence: 0.8, position: 10, priority: 'regular' as const },
+      { symbol: 'FAKE', confidence: 0.7, position: 20, priority: 'regular' as const },
+      { symbol: 'INVALID', confidence: 0.6, position: 30, priority: 'regular' as const }
     ];
 
     await ephemeralHandler.createSymbolButtons(mockMessage, symbols);
@@ -169,10 +169,10 @@ test.describe('Smart Button Filtering', () => {
     } as any;
 
     const symbols = [
-      { symbol: 'AAPL', confidence: 0.8, position: 10 },
-      { symbol: 'TSLA', confidence: 0.7, position: 20 },
-      { symbol: 'MSFT', confidence: 0.6, position: 30 },
-      { symbol: 'UNKNOWN', confidence: 0.5, position: 40 }
+      { symbol: 'AAPL', confidence: 0.8, position: 10, priority: 'regular' as const },
+      { symbol: 'TSLA', confidence: 0.7, position: 20, priority: 'regular' as const },
+      { symbol: 'MSFT', confidence: 0.6, position: 30, priority: 'regular' as const },
+      { symbol: 'UNKNOWN', confidence: 0.5, position: 40, priority: 'regular' as const }
     ];
 
     await ephemeralHandler.createSymbolButtons(mockMessage, symbols);
@@ -204,7 +204,7 @@ test.describe('Smart Button Filtering', () => {
     } as any;
 
     const symbols = [
-      { symbol: 'NVDA', confidence: 0.8, position: 10 }
+      { symbol: 'NVDA', confidence: 0.8, position: 10, priority: 'regular' as const }
     ];
 
     await ephemeralHandler.createSymbolButtons(mockMessage, symbols);
@@ -293,7 +293,8 @@ test.describe('Smart Button Filtering', () => {
     const symbols = Array.from({ length: 30 }, (_, i) => ({
       symbol: `SYM${i.toString().padStart(2, '0')}`,
       confidence: 0.5,
-      position: i * 10
+      position: i * 10,
+      priority: 'regular' as const
     }));
 
     await ephemeralHandler.createSymbolButtons(mockMessage, symbols);

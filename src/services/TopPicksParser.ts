@@ -15,7 +15,7 @@ export class TopPicksParser {
     const lowerContent = content.toLowerCase();
     
     // Look for Hebrew "טופ פיקס" or English "top picks" section
-    const topPicksPattern = /(?:❕\s*טופ פיקס|top\s*picks?)[:：]/i;
+    const topPicksPattern = /(?:❕\s*טופ פיקס|טופ פיקס|top\s*picks?)[:：]?/i;
     const topPicksMatch = content.search(topPicksPattern);
     
     if (topPicksMatch === -1) {
@@ -26,21 +26,25 @@ export class TopPicksParser {
     // Extract the section after "טופ פיקס:" or "top picks:"
     const topPicksSection = content.slice(topPicksMatch);
     const lines = topPicksSection.split('\n');
-
+    
     for (const line of lines) {
-      // Look for long picks line: 📈 long: SYMBOL1, SYMBOL2, ...
-      const longMatch = line.match(/📈\s*long\s*[:：]\s*(.+)/i);
+      // Look for long picks line: 📈 long: SYMBOL1, SYMBOL2, ... OR just long: SYMBOL1, SYMBOL2, ...
+      const longMatch = line.match(/(?:📈\s*)?long\s*[:：]\s*(.+)/i);
       if (longMatch) {
         const symbolsText = longMatch[1]!.trim();
+        Logger.debug(`Parsing long picks from line: "${line}"`);
+        Logger.debug(`Extracted symbols text: "${symbolsText}"`);
         result.longPicks = this.extractSymbolsFromText(symbolsText);
         Logger.debug(`Found ${result.longPicks.length} long top picks: ${result.longPicks.join(', ')}`);
         continue;
       }
 
-      // Look for short picks line: 📉 short: SYMBOL1, SYMBOL2, ...
-      const shortMatch = line.match(/📉\s*short\s*[:：]\s*(.+)/i);
+      // Look for short picks line: 📉 short: SYMBOL1, SYMBOL2, ... OR just short: SYMBOL1, SYMBOL2, ...
+      const shortMatch = line.match(/(?:📉\s*)?short\s*[:：]\s*(.+)/i);
       if (shortMatch) {
         const symbolsText = shortMatch[1]!.trim();
+        Logger.debug(`Parsing short picks from line: "${line}"`);
+        Logger.debug(`Extracted symbols text: "${symbolsText}"`);
         result.shortPicks = this.extractSymbolsFromText(symbolsText);
         Logger.debug(`Found ${result.shortPicks.length} short top picks: ${result.shortPicks.join(', ')}`);
         continue;
@@ -56,11 +60,15 @@ export class TopPicksParser {
   }
 
   private extractSymbolsFromText(text: string): string[] {
+    Logger.debug(`Extracting symbols from text: "${text}"`);
+    
     // Remove common separators and extract symbols
     const cleaned = text
       .replace(/[,，、]/g, ' ')  // Replace commas with spaces
       .replace(/\s+/g, ' ')      // Normalize whitespace
       .trim();
+
+    Logger.debug(`Cleaned text: "${cleaned}"`);
 
     if (!cleaned) {
       return [];
@@ -73,13 +81,18 @@ export class TopPicksParser {
 
     while ((match = symbolPattern.exec(cleaned)) !== null) {
       const symbol = match[1]!;
-      if (this.isValidStockSymbol(symbol)) {
+      const isValid = this.isValidStockSymbol(symbol);
+      Logger.debug(`Found potential symbol: "${symbol}", valid: ${isValid}`);
+      if (isValid) {
         symbols.push(symbol);
       }
     }
 
+    const result = [...new Set(symbols)];
+    Logger.debug(`Final extracted symbols: [${result.join(', ')}]`);
+    
     // Remove duplicates while preserving order
-    return [...new Set(symbols)];
+    return result;
   }
 
   private isValidStockSymbol(symbol: string): boolean {
@@ -93,24 +106,29 @@ export class TopPicksParser {
     ]);
 
     if (excludeWords.has(symbol)) {
+      Logger.debug(`Symbol "${symbol}" rejected: in exclude words`);
       return false;
     }
 
     // Must be 1-5 uppercase letters
     if (symbol.length < 1 || symbol.length > 5) {
+      Logger.debug(`Symbol "${symbol}" rejected: invalid length (${symbol.length})`);
       return false;
     }
 
     if (!/^[A-Z]+$/.test(symbol)) {
+      Logger.debug(`Symbol "${symbol}" rejected: not all uppercase letters`);
       return false;
     }
 
     // Single letter symbols only for specific cases
     const allowedSingleLetters = ['A', 'I'];
     if (symbol.length === 1 && !allowedSingleLetters.includes(symbol)) {
+      Logger.debug(`Symbol "${symbol}" rejected: single letter not allowed`);
       return false;
     }
 
+    Logger.debug(`Symbol "${symbol}" accepted as valid`);
     return true;
   }
 
