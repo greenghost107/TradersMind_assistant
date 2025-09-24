@@ -60,7 +60,8 @@ export const HEBREW_KEYWORDS = {
     'אינסייד קנדל',
     'falling wedge',
     'ליברמור',
-    'ATH'
+    'ATH',
+    '✅'
   ],
   medium: [
     'עולה',
