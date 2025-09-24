@@ -155,8 +155,7 @@ export class SymbolDetector {
         
         // Then by confidence
         return b.confidence - a.confidence;
-      })
-      .slice(0, 25);
+      });
   }
 
   private getPriorityOrder(priority: 'top_long' | 'top_short' | 'regular'): number {
