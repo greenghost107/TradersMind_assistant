@@ -3,6 +3,7 @@ import { AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
+import { HEBREW_KEYWORDS } from '../config';
 
 export class AnalysisLinker {
   private analysisCache: Map<string, AnalysisData[]> = new Map();
@@ -61,10 +62,16 @@ export class AnalysisLinker {
     Logger.analysis(`Indexing message ${message.id}: symbols=${symbols.map(s => s.symbol).join(', ')}, charts=${extractedUrls.chartUrls.length}, attachments=${extractedUrls.attachmentUrls.length}`);
     
     const symbolStrings = symbols.map(s => s.symbol);
-    const relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
+    let relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
+    
+    const isReply = message.reference !== null && message.reference !== undefined;
+    if (isReply) {
+      relevanceScore += 0.2;
+      Logger.debug(`Message ${message.id} is a reply - boosting relevance score by 0.2`);
+    }
     
     // Enhanced logging for debugging indexing decisions
-    Logger.debug(`Message ${message.id} analysis: symbols=${symbols.length}, score=${relevanceScore.toFixed(3)}, length=${message.content.length}, content="${message.content.slice(0, 80)}..."`);
+    Logger.debug(`Message ${message.id} analysis: symbols=${symbols.length}, score=${relevanceScore.toFixed(3)}, length=${message.content.length}, isReply=${isReply}, content="${message.content.slice(0, 80)}..."`);
     
     // Skip messages with low relevance (likely ticker-only messages)
     const MIN_RELEVANCE_THRESHOLD = 0.7;
@@ -188,6 +195,24 @@ export class AnalysisLinker {
     
     for (const keyword of weakKeywords) {
       if (lowerContent.includes(keyword)) {
+        score += 0.1;
+      }
+    }
+    
+    for (const keyword of HEBREW_KEYWORDS.strong) {
+      if (content.includes(keyword)) {
+        score += 0.3;
+      }
+    }
+    
+    for (const keyword of HEBREW_KEYWORDS.medium) {
+      if (content.includes(keyword)) {
+        score += 0.2;
+      }
+    }
+    
+    for (const keyword of HEBREW_KEYWORDS.weak) {
+      if (content.includes(keyword)) {
         score += 0.1;
       }
     }

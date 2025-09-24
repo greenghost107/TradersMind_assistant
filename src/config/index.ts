@@ -39,3 +39,52 @@ export const COMMON_WORDS = new Set([
 
 export const SYMBOL_PATTERN = /\b([A-Z]{1,5})\b/g;
 export const MAX_DISCORD_BUTTONS = 25;
+
+export const HEBREW_KEYWORDS = {
+  strong: [
+    'ברייקאאוט',
+    'פריצה',
+    'relative strength',
+    'שיא',
+    'ווליום',
+    'ממוצע',
+    'AVWAP',
+    'EMA20',
+    '50DMA',
+    'HTF',
+    'קו פריצה',
+    'בלו סקייס',
+    'אלכסון',
+    'קונסולדיציה',
+    'ריטטס',
+    'אינסייד קנדל',
+    'falling wedge',
+    'ליברמור',
+    'ATH'
+  ],
+  medium: [
+    'עולה',
+    'נע',
+    'מעל',
+    'שמירה',
+    'המשכיות',
+    'טרנד',
+    'מומנטום',
+    'סטאפ',
+    'באונס',
+    'כריטסט',
+    'רייד ווינרס',
+    'IBD50',
+    'Sector Leaders',
+    'פוקוס'
+  ],
+  weak: [
+    'מניה',
+    'מניית',
+    'watch',
+    'יום',
+    'שבוע',
+    'חדש',
+    'נהדר'
+  ]
+};
