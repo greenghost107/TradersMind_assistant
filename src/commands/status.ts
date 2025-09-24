@@ -22,9 +22,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setTitle('❌ Bot Not Configured')
       .setDescription(
         'The bot is not properly configured. Missing required environment variables:\n\n' +
-        '• `ANALYSIS_CHANNEL_1_ID`\n' +
-        '• `ANALYSIS_CHANNEL_2_ID`\n' +
-        '• `GENERAL_NOTICES_CHANNEL_ID`\n\n' +
+        '• `LONG_ANALYSIS_CHANNEL`\n' +
+        '• `SHORT_ANALYSIS_CHANNEL`\n' +
+        '• `MANAGER_GENERAL_MESSAGES_CHANNEL`\n\n' +
         'Please contact an administrator to configure these channels.'
       )
       .setColor(Colors.Red)

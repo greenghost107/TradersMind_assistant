@@ -5,21 +5,21 @@ config();
 
 export const ENV = {
   DISCORD_TOKEN: process.env.DISCORD_TOKEN || '',
-  ANALYSIS_CHANNEL_1_ID: process.env.ANALYSIS_CHANNEL_1_ID || '',
-  ANALYSIS_CHANNEL_2_ID: process.env.ANALYSIS_CHANNEL_2_ID || '',
-  GENERAL_NOTICES_CHANNEL_ID: process.env.GENERAL_NOTICES_CHANNEL_ID || '',
+  LONG_ANALYSIS_CHANNEL: process.env.LONG_ANALYSIS_CHANNEL || '',
+  SHORT_ANALYSIS_CHANNEL: process.env.SHORT_ANALYSIS_CHANNEL || '',
+  MANAGER_GENERAL_MESSAGES_CHANNEL: process.env.MANAGER_GENERAL_MESSAGES_CHANNEL || '',
   MESSAGE_RETENTION_HOURS: parseInt(process.env.MESSAGE_RETENTION_HOURS || '26'),
   NODE_ENV: process.env.NODE_ENV || 'development'
 };
 
 export const getBotConfig = (): BotConfig | null => {
-  if (!ENV.ANALYSIS_CHANNEL_1_ID || !ENV.ANALYSIS_CHANNEL_2_ID || !ENV.GENERAL_NOTICES_CHANNEL_ID) {
+  if (!ENV.LONG_ANALYSIS_CHANNEL || !ENV.SHORT_ANALYSIS_CHANNEL || !ENV.MANAGER_GENERAL_MESSAGES_CHANNEL) {
     return null;
   }
   
   return {
-    analysisChannels: [ENV.ANALYSIS_CHANNEL_1_ID, ENV.ANALYSIS_CHANNEL_2_ID],
-    generalNoticesChannel: ENV.GENERAL_NOTICES_CHANNEL_ID,
+    analysisChannels: [ENV.LONG_ANALYSIS_CHANNEL, ENV.SHORT_ANALYSIS_CHANNEL],
+    generalNoticesChannel: ENV.MANAGER_GENERAL_MESSAGES_CHANNEL,
     retentionHours: ENV.MESSAGE_RETENTION_HOURS,
     guildId: '' // Not needed for env-based config
   };

@@ -10,7 +10,7 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **Ready from first startup** - no need to wait for new analysis messages
 - Progress shown during initialization: "📊 Found 15 symbols from last week"
 
-### Analysis Channels (ANALYSIS_CHANNEL_1_ID & ANALYSIS_CHANNEL_2_ID)
+### Analysis Channels (LONG_ANALYSIS_CHANNEL & SHORT_ANALYSIS_CHANNEL)
 - The bot monitors these channels for analysis messages
 - **Expected message format**: First line contains the stock symbol(s), rest is analysis content
 - **Reply messages supported**: Reply messages are indexed with their own content (useful for follow-up analysis)
@@ -25,7 +25,7 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **Relevance scoring**: Messages must score ≥0.7 to be indexed (filters out ticker-only mentions)
 - The bot maintains a map of the latest analysis message URL for each symbol
 
-### General Notices Channel (GENERAL_NOTICES_CHANNEL_ID)  
+### General Notices Channel (MANAGER_GENERAL_MESSAGES_CHANNEL)  
 - When users post messages with top picks, the bot creates interactive symbol buttons
 - **Top Picks Detection**: Automatically parses Hebrew "טופ פיקס" and English "top picks" sections
 - **Priority System**: 
@@ -80,9 +80,9 @@ To configure the bot, you need to get the Channel IDs for your Discord channels:
 3. The Channel ID will be copied to your clipboard (it's a long number like `123456789012345678`)
 
 **Channels you need:**
-- **Analysis Channel 1**: Where your first analysis content is posted
-- **Analysis Channel 2**: Where your second analysis content is posted  
-- **General Notices Channel**: Where the bot will monitor for stock symbols
+- **Long Analysis Channel**: Where your long position analysis content is posted
+- **Short Analysis Channel**: Where your short position analysis content is posted  
+- **Manager General Messages Channel**: Where the bot will monitor for top picks and stock symbols
 
 ### 3. Environment Configuration
 ```bash
@@ -95,9 +95,9 @@ Edit the `.env` file with your information:
 DISCORD_TOKEN=your_discord_bot_token_here
 
 # Channel IDs (replace with your actual channel IDs)
-ANALYSIS_CHANNEL_1_ID=123456789012345678
-ANALYSIS_CHANNEL_2_ID=987654321098765432
-GENERAL_NOTICES_CHANNEL_ID=456789123456789123
+LONG_ANALYSIS_CHANNEL=123456789012345678
+SHORT_ANALYSIS_CHANNEL=987654321098765432
+MANAGER_GENERAL_MESSAGES_CHANNEL=456789123456789123
 
 # Optional: Message retention in hours (default: 26)
 MESSAGE_RETENTION_HOURS=26
@@ -376,9 +376,9 @@ In the Render dashboard, go to the "Environment" tab and add these variables:
 |---------------|-------|------------|
 | `NODE_ENV` | `production` | Just type this |
 | `DISCORD_TOKEN` | Your bot token | Discord Developer Portal → Your App → Bot → Token |
-| `ANALYSIS_CHANNEL_1_ID` | Channel ID | Discord → Right-click channel → Copy ID |
-| `ANALYSIS_CHANNEL_2_ID` | Channel ID | Discord → Right-click channel → Copy ID |
-| `GENERAL_NOTICES_CHANNEL_ID` | Channel ID | Discord → Right-click channel → Copy ID |
+| `LONG_ANALYSIS_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
+| `SHORT_ANALYSIS_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
+| `MANAGER_GENERAL_MESSAGES_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
 | `MESSAGE_RETENTION_HOURS` | `26` | Default value (optional) |
 
 **How to get Discord Channel IDs:**
@@ -417,7 +417,7 @@ In the Render dashboard, go to the "Environment" tab and add these variables:
 - Verify channel IDs are correct
 
 **Buttons not appearing:**
-- Verify `GENERAL_NOTICES_CHANNEL_ID` matches the channel you're testing in
+- Verify `MANAGER_GENERAL_MESSAGES_CHANNEL` matches the channel you're testing in
 - Check that analysis channels have recent messages with symbols
 - Use `/status` command to verify bot configuration
 

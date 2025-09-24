@@ -10,11 +10,11 @@ services:
         value: production
       - key: DISCORD_TOKEN
         sync: false
-      - key: ANALYSIS_CHANNEL_1_ID
+      - key: LONG_ANALYSIS_CHANNEL
         sync: false
-      - key: ANALYSIS_CHANNEL_2_ID
+      - key: SHORT_ANALYSIS_CHANNEL
         sync: false
-      - key: GENERAL_NOTICES_CHANNEL_ID
+      - key: MANAGER_GENERAL_MESSAGES_CHANNEL
         sync: false
       - key: MESSAGE_RETENTION_HOURS
         value: "26"
