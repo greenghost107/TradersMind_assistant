@@ -13,6 +13,8 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 ### Analysis Channels (ANALYSIS_CHANNEL_1_ID & ANALYSIS_CHANNEL_2_ID)
 - The bot monitors these channels for analysis messages
 - **Expected message format**: First line contains the stock symbol(s), rest is analysis content
+- **Reply messages supported**: Reply messages are indexed with their own content (useful for follow-up analysis)
+- **Hebrew & English support**: Full support for Hebrew technical analysis terminology
 - **Historical scraping**: Bot reads last week's messages on startup
 - Example:
   ```
@@ -20,12 +22,19 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
   Technical analysis shows bullish breakout pattern above $185.
   Price target $210 with support at $180.
   ```
+- **Relevance scoring**: Messages must score ≥0.7 to be indexed (filters out ticker-only mentions)
 - The bot maintains a map of the latest analysis message URL for each symbol
 
 ### General Notices Channel (GENERAL_NOTICES_CHANNEL_ID)  
-- When users mention stock symbols in this channel, the bot shows clean interactive buttons
-- **Button format**: `📊 $SYMBOL` (chart emoji + ticker symbol)
-- **No text clutter**: Only buttons appear, no description text or timestamps
+- When users post messages with top picks, the bot creates interactive symbol buttons
+- **Top Picks Detection**: Automatically parses Hebrew "טופ פיקס" and English "top picks" sections
+- **Priority System**: 
+  - 🟢 `top_long` - Green buttons for long picks
+  - 🔴 `top_short` - Red buttons for short picks  
+  - 📊 `regular` - Gray buttons for regular mentions
+- **Analysis Filtering**: Only symbols WITH recent analysis get buttons
+- **No symbol limit**: All top picks are parsed (no 25-symbol cap) before filtering
+- **Message Splitting**: Automatically splits into multiple messages if >20 symbols with analysis
 - Users can click symbol buttons to see the latest analysis privately (ephemeral response)
 - The response includes a direct link to the most recent analysis message
 - **Works immediately** even for historical analysis from before bot startup
@@ -37,6 +46,11 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **📊 First-Line Symbol Extraction**: Only symbols in the first line of analysis messages are indexed
 - **🔗 Latest Analysis Tracking**: Maintains a map of the most recent analysis URL per symbol
 - **🤖 Smart Symbol Detection**: Uses regex patterns with word filtering, supports emojis
+- **🌍 Hebrew & English Support**: Full Hebrew keyword matching for technical analysis (ברייקאאוט, פריצה, ATH, etc.)
+- **💬 Reply Message Indexing**: Reply messages get +0.2 relevance boost and are indexed independently
+- **🎯 Top Picks Parser**: Automatically extracts and prioritizes symbols from "טופ פיקס" / "top picks" sections
+- **♾️ Unlimited Symbol Parsing**: No 25-symbol limit - all top picks parsed before filtering
+- **🔍 Relevance Filtering**: Smart scoring (≥0.7 threshold) rejects ticker-only lists
 - **👻 Ephemeral Interactions**: Private button-based interface for viewing analysis  
 - **🧹 Message Retention**: Configurable automatic cleanup of bot messages
 - **🔗 Direct Message Links**: Provides clickable URLs to Discord analysis messages
@@ -122,17 +136,28 @@ npm run dev
 ## Architecture
 
 ### Services
-- **ChannelScanner**: Monitors messages in configured channels
-- **SymbolDetector**: Detects stock symbols using pattern matching
-- **AnalysisLinker**: Indexes and links analysis messages to symbols
-- **EphemeralHandler**: Manages button interactions and ephemeral responses
+- **ChannelScanner**: Monitors general notices channel for top picks messages
+- **SymbolDetector**: Detects stock symbols using pattern matching (no 25-symbol limit)
+- **TopPicksParser**: Extracts symbols from "טופ פיקס" / "top picks" sections with priority
+- **AnalysisLinker**: Indexes and links analysis messages to symbols with Hebrew keyword support
+- **EphemeralHandler**: Manages button interactions and ephemeral responses (splits >20 buttons)
 - **MessageRetention**: Handles automatic message cleanup
+
+### Message Flow
+1. **Analysis Channels** → AnalysisLinker indexes messages (relevance ≥0.7, Hebrew/English keywords)
+2. **General Notices** → SymbolDetector parses ALL top picks (unlimited symbols)
+3. **Filtering** → ChannelScanner filters symbols WITH analysis
+4. **Button Creation** → EphemeralHandler creates buttons (splits if >20 symbols)
+5. **User Interaction** → Click button → Private analysis preview with direct link
 
 ### Key Features
 - **Environment-Based Configuration**: No complex setup commands needed
 - **Ephemeral Interactions**: Private responses visible only to requesting user
 - **Multi-tiered Cleanup**: Automatic message and cache cleanup with safety buffers
 - **Smart Symbol Detection**: Pattern matching with confidence scoring and word filtering
+- **Hebrew Keyword Matching**: 40+ Hebrew technical terms (strong/medium/weak scoring)
+- **Reply Message Boost**: +0.2 relevance score for follow-up analysis
+- **Unlimited Symbol Parsing**: All top picks parsed before filtering (no 25-cap)
 - **Service-Oriented Architecture**: Clean separation of concerns
 - **Comprehensive Error Handling**: Graceful failure recovery
 
@@ -156,6 +181,9 @@ The project includes comprehensive test coverage using both Jest and Playwright:
 
 #### Integration Tests (Playwright)  
 - **Symbol Detection** - End-to-end symbol detection from message content
+- **Top Picks Prioritization** - Parsing 25+ symbols, priority ordering, deduplication
+- **Hebrew Analysis Indexing** - Hebrew keyword matching, relevance scoring, reply boost
+- **Symbol List Filtering** - Rejection of ticker-only lists, density penalties
 - **Analysis Linking** - URL generation and latest analysis tracking
 - **Ephemeral Handler** - Button creation and interaction handling
 - **Bot Integration** - Complete workflow from analysis to user interaction
