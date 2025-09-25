@@ -4,6 +4,7 @@ import { SymbolDetector } from './SymbolDetector';
 import { EphemeralHandler } from './EphemeralHandler';
 import { AnalysisLinker } from './AnalysisLinker';
 import { Logger } from '../utils/Logger';
+import { ThreadDetector } from '../utils/ThreadDetector';
 
 export class ChannelScanner {
   constructor(
@@ -14,6 +15,11 @@ export class ChannelScanner {
 
   public async handleMessage(message: Message, config: BotConfig): Promise<void> {
     if (message.channelId !== config.generalNoticesChannel) {
+      return;
+    }
+
+    // Skip thread messages - general notices should only process main channel messages
+    if (ThreadDetector.checkAndLogThread(message, 'ChannelScanner')) {
       return;
     }
 

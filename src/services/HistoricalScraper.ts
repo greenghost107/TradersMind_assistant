@@ -3,6 +3,7 @@ import { BotConfig, AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
+import { ThreadDetector } from '../utils/ThreadDetector';
 
 export class HistoricalScraper {
   private symbolDetector: SymbolDetector;
@@ -138,6 +139,10 @@ export class HistoricalScraper {
 
     for (const message of messages.values()) {
       try {
+        // Skip thread messages - historical scraping should only process main channel messages
+        if (ThreadDetector.checkAndLogThread(message, 'HistoricalScraper')) {
+          continue;
+        }
         const symbols = this.extractSymbolsFromFirstLine(message.content);
         
         if (symbols.length === 0) {

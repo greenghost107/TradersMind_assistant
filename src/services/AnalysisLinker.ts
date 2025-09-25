@@ -4,6 +4,7 @@ import { SymbolDetector } from './SymbolDetector';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
 import { HEBREW_KEYWORDS } from '../config';
+import { ThreadDetector } from '../utils/ThreadDetector';
 
 export class AnalysisLinker {
   private analysisCache: Map<string, AnalysisData[]> = new Map();
@@ -45,8 +46,7 @@ export class AnalysisLinker {
     if (message.author.bot) return;
 
     // Skip thread messages in analysis channels
-    if (message.channel && typeof message.channel.isThread === 'function' && message.channel.isThread()) {
-      Logger.debug(`Skipping thread message ${message.id} in analysis channel`);
+    if (ThreadDetector.checkAndLogThread(message, 'AnalysisLinker')) {
       return;
     }
 

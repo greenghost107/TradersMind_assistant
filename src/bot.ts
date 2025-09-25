@@ -10,6 +10,7 @@ import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
 import { PermissionDiagnostic, DiagnosticReport } from './services/PermissionDiagnostic';
 import { Logger } from './utils/Logger';
+import { ThreadDetector } from './utils/ThreadDetector';
 
 class TradersMindBot {
   private client: Client;
@@ -72,6 +73,11 @@ class TradersMindBot {
 
     this.client.on(Events.MessageCreate, async (message) => {
       if (message.author.bot || !this.config || !this.isInitialized) return;
+
+      // Skip thread messages - threads should never be processed by any service
+      if (ThreadDetector.checkAndLogThread(message, 'Bot')) {
+        return;
+      }
 
       await this.channelScanner.handleMessage(message, this.config);
       
