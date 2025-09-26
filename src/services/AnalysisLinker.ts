@@ -3,8 +3,8 @@ import { AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
+import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
 import { HEBREW_KEYWORDS } from '../config';
-import { ThreadDetector } from '../utils/ThreadDetector';
 
 export class AnalysisLinker {
   private analysisCache: Map<string, AnalysisData[]> = new Map();
@@ -45,10 +45,7 @@ export class AnalysisLinker {
   public async indexMessage(message: Message): Promise<void> {
     if (message.author.bot) return;
 
-    // Skip thread messages in analysis channels
-    if (ThreadDetector.checkAndLogThread(message, 'AnalysisLinker')) {
-      return;
-    }
+    // Thread filtering now handled at bot.js level before calling this method
 
     const firstLine = message.content.split('\n')[0] || '';
     const symbols = this.symbolDetector.detectSymbols(firstLine);
@@ -56,7 +53,7 @@ export class AnalysisLinker {
       return;
     }
 
-    const messageUrl = `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`;
+    const messageUrl = DiscordUrlGenerator.generateMessageUrl(message.guildId!, message);
     const extractedUrls = this.urlExtractor.extractUrlsFromMessage(message);
     
     Logger.analysis(`Indexing message ${message.id}: symbols=${symbols.map(s => s.symbol).join(', ')}, charts=${extractedUrls.chartUrls.length}, attachments=${extractedUrls.attachmentUrls.length}`);
@@ -95,6 +92,28 @@ export class AnalysisLinker {
     };
 
     for (const symbol of symbolStrings) {
+      Logger.debug(`Indexing symbol ${symbol} from message ${message.id} (${messageUrl})`);
+      Logger.debug(`Message ${message.id} channel info: channelId=${message.channelId}, channel constructor=${message.channel?.constructor?.name}`);
+      Logger.debug(`Message ${message.id} timestamp: ${message.createdAt}, content preview: "${message.content.substring(0, 50)}..."`);
+      
+      // Check if this message appears to be in a thread context
+      if (message.channel && 'parentId' in message.channel && message.channel.parentId) {
+        Logger.warn(`⚠️ POTENTIAL ISSUE: Indexing symbol ${symbol} from message ${message.id} that appears to be in thread (parentId: ${message.channel.parentId})`);
+      }
+      
+      // Check if we already have analysis for this symbol and compare timestamps
+      const existing = this.latestAnalysisMap.get(symbol);
+      if (existing) {
+        Logger.debug(`Symbol ${symbol} already has analysis: existing=${existing.messageId} (${existing.timestamp}), new=${message.id} (${message.createdAt})`);
+        if (message.createdAt > existing.timestamp) {
+          Logger.debug(`NEW message ${message.id} is newer - will replace existing ${existing.messageId} for ${symbol}`);
+        } else {
+          Logger.debug(`EXISTING message ${existing.messageId} is newer - will keep existing for ${symbol}`);
+        }
+      } else {
+        Logger.debug(`Symbol ${symbol} has no existing analysis - storing message ${message.id}`);
+      }
+      
       this.addToCache(symbol, analysisData);
       this.latestAnalysisMap.set(symbol, analysisData);
     }

@@ -18,12 +18,10 @@ export class SymbolDetector {
     
     // Add all top picks directly to symbols array with high confidence
     for (const symbol of topPicks.longPicks) {
-      Logger.debug(`Adding top long pick: ${symbol}`);
       symbols.push({ symbol, confidence: 1.0, position: 0, priority: 'top_long' });
     }
     
     for (const symbol of topPicks.shortPicks) {
-      Logger.debug(`Adding top short pick: ${symbol}`);
       symbols.push({ symbol, confidence: 1.0, position: 0, priority: 'top_short' });
     }
 

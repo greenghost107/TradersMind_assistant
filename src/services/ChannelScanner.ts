@@ -4,7 +4,6 @@ import { SymbolDetector } from './SymbolDetector';
 import { EphemeralHandler } from './EphemeralHandler';
 import { AnalysisLinker } from './AnalysisLinker';
 import { Logger } from '../utils/Logger';
-import { ThreadDetector } from '../utils/ThreadDetector';
 
 export class ChannelScanner {
   constructor(
@@ -18,10 +17,7 @@ export class ChannelScanner {
       return;
     }
 
-    // Skip thread messages - general notices should only process main channel messages
-    if (ThreadDetector.checkAndLogThread(message, 'ChannelScanner')) {
-      return;
-    }
+    // Thread filtering now handled at bot.js level before calling this method
 
     const symbols = this.symbolDetector.detectSymbolsFromTopPicks(message.content);
     
@@ -39,9 +35,7 @@ export class ChannelScanner {
 
     // All symbols (including top picks) require analysis data for buttons
     const symbolsWithAnalysis = symbols.filter(symbol => {
-      const hasAnalysis = this.analysisLinker.hasAnalysisFor(symbol.symbol);
-      Logger.debug(`Symbol ${symbol.symbol} (${symbol.priority}) analysis check: ${hasAnalysis}`);
-      return hasAnalysis;
+      return this.analysisLinker.hasAnalysisFor(symbol.symbol);
     });
 
     // Log filtering results

@@ -10,7 +10,7 @@ import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
 import { PermissionDiagnostic, DiagnosticReport } from './services/PermissionDiagnostic';
 import { Logger } from './utils/Logger';
-import { ThreadDetector } from './utils/ThreadDetector';
+import { ThreadManager } from './services/ThreadManager';
 
 class TradersMindBot {
   private client: Client;
@@ -22,6 +22,7 @@ class TradersMindBot {
   private ephemeralHandler: EphemeralHandler;
   private historicalScraper: HistoricalScraper;
   private permissionDiagnostic: PermissionDiagnostic;
+  private threadManager: ThreadManager;
   private commands: Collection<string, any>;
   private isInitialized: boolean = false;
   private httpServer: any = null;
@@ -39,12 +40,18 @@ class TradersMindBot {
 
     this.commands = new Collection();
     this.config = getBotConfig();
+    
+    if (!this.config) {
+      throw new Error('Failed to load bot configuration. Please check your environment variables.');
+    }
+    
     this.symbolDetector = new SymbolDetector();
     this.analysisLinker = new AnalysisLinker();
     this.messageRetention = new MessageRetention();
     this.ephemeralHandler = new EphemeralHandler(this.analysisLinker, this.messageRetention);
-    this.historicalScraper = new HistoricalScraper();
+    this.historicalScraper = new HistoricalScraper(this.config.analysisChannels);
     this.permissionDiagnostic = new PermissionDiagnostic();
+    this.threadManager = new ThreadManager(this.config.analysisChannels);
     this.channelScanner = new ChannelScanner(
       this.symbolDetector, 
       this.ephemeralHandler,
@@ -74,15 +81,25 @@ class TradersMindBot {
     this.client.on(Events.MessageCreate, async (message) => {
       if (message.author.bot || !this.config || !this.isInitialized) return;
 
+      // Enhanced logging for message processing
+      Logger.debug(`Bot: Processing message ${message.id} in channel ${message.channel.id} from ${message.author.tag}`);
+
       // Skip thread messages - threads should never be processed by any service
-      if (ThreadDetector.checkAndLogThread(message, 'Bot')) {
+      const isFromThread = await this.threadManager.isMessageFromThread(this.client, message);
+      if (isFromThread) {
+        Logger.debug(`Bot: Thread message ${message.id} was blocked from all processing`);
         return;
       }
+
+      Logger.debug(`Bot: Message ${message.id} passed thread check, proceeding with processing`);
 
       await this.channelScanner.handleMessage(message, this.config);
       
       if (this.config.analysisChannels.includes(message.channel.id)) {
+        Logger.debug(`Bot: Message ${message.id} is in analysis channel, sending to indexing`);
         await this.analysisLinker.indexMessage(message);
+      } else {
+        Logger.debug(`Bot: Message ${message.id} is NOT in analysis channels: [${this.config.analysisChannels.join(', ')}]`);
       }
     });
 

@@ -12,6 +12,7 @@ import { AnalysisLinker } from './AnalysisLinker';
 import { MessageRetention } from './MessageRetention';
 import { MAX_DISCORD_BUTTONS } from '../config';
 import { Logger } from '../utils/Logger';
+import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
 
 export class EphemeralHandler {
   private ephemeralTracking: Map<string, EphemeralInteraction> = new Map();
@@ -255,8 +256,36 @@ export class EphemeralHandler {
 
       let description = `**${channelName}** • ${timeAgo}\n\n${shortPreview}\n\n`;
       
-      const messageUrl = latestAnalysis.messageUrl || `https://discord.com/channels/${interaction.guildId}/${latestAnalysis.channelId}/${latestAnalysis.messageId}`;
-      Logger.debug(`Message URL for ${symbol}: stored=${latestAnalysis.messageUrl}, fallback=https://discord.com/channels/${interaction.guildId}/${latestAnalysis.channelId}/${latestAnalysis.messageId}, final=${messageUrl}`);
+      // Generate fallback URL first
+      const fallbackUrl = interaction.guildId 
+        ? DiscordUrlGenerator.generateLegacyUrl(
+            interaction.guildId,
+            latestAnalysis.channelId,
+            latestAnalysis.messageId
+          )
+        : 'URL unavailable';
+      
+      // Use stored URL if available, but validate it first
+      let messageUrl = latestAnalysis.messageUrl;
+      
+      // Check if stored URL has incorrect channel ID (known issue with historical data)
+      if (messageUrl && interaction.guildId) {
+        const expectedChannelId = latestAnalysis.channelId;
+        const storedUrlPattern = new RegExp(`discord\\.com/channels/${interaction.guildId}/([^/]+)/`);
+        const match = messageUrl.match(storedUrlPattern);
+        
+        if (match && match[1] !== expectedChannelId) {
+          Logger.warn(`Stored URL has incorrect channel ID ${match[1]}, expected ${expectedChannelId}. Using fallback URL.`);
+          messageUrl = fallbackUrl; // Use the correctly generated fallback URL
+        }
+      }
+      
+      // Final fallback if no messageUrl
+      if (!messageUrl) {
+        messageUrl = fallbackUrl;
+      }
+      
+      Logger.debug(`Message URL for ${symbol}: stored=${latestAnalysis.messageUrl}, fallback=${fallbackUrl}, final=${messageUrl}`);
       description += `[View Original Message](${messageUrl})`;
 
       embed.setDescription(description);

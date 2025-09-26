@@ -3,17 +3,20 @@ import { BotConfig, AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
-import { ThreadDetector } from '../utils/ThreadDetector';
+import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
+import { ThreadManager } from './ThreadManager';
 
 export class HistoricalScraper {
   private symbolDetector: SymbolDetector;
   private urlExtractor: UrlExtractor;
+  private threadManager: ThreadManager;
   private readonly DAYS_TO_SCRAPE = 7;
-  private readonly REQUEST_DELAY_MS = 100; // Small delay between requests to avoid rate limits
+  private readonly REQUEST_DELAY_MS = 100;
 
-  constructor() {
+  constructor(analysisChannels: string[]) {
     this.symbolDetector = new SymbolDetector();
     this.urlExtractor = new UrlExtractor();
+    this.threadManager = new ThreadManager(analysisChannels);
   }
 
   public async scrapeHistoricalAnalysis(
@@ -36,20 +39,21 @@ export class HistoricalScraper {
           Logger.warn(`Could not access analysis channel ${channelId}`);
           continue;
         }
-
+        
         Logger.info(`Scraping #${channel.name} (${channelId})...`);
         
-        const messages = await this.fetchRecentMessages(channel, cutoffDate);
+        const threadStarterIds = await this.threadManager.getThreadStarterMessageIds(client, channelId, true);
+        
+        const messages = await this.fetchRecentMessages(channel, cutoffDate, client, threadStarterIds);
         Logger.info(`Found ${messages.size} messages in #${channel.name}`);
 
         const channelResults = await this.processChannelMessages(
           messages,
-          channel.guildId || 'unknown'
+          channel.guildId || 'unknown',
+          threadStarterIds
         );
         
         Logger.debug(`Found ${channelResults.size} symbols in ${channel.name}`);
-
-        // Merge results, keeping only the latest message per symbol
         for (const [symbol, analysisData] of channelResults) {
           const existing = latestAnalysisMap.get(symbol);
           if (!existing || analysisData.timestamp > existing.timestamp) {
@@ -60,7 +64,6 @@ export class HistoricalScraper {
         totalMessagesProcessed += messages.size;
         totalSymbolsFound += channelResults.size;
 
-        // Small delay to avoid rate limits
         await this.delay(this.REQUEST_DELAY_MS);
       } catch (error) {
         Logger.error(`Error scraping channel ${channelId}:`, error);
@@ -81,12 +84,16 @@ export class HistoricalScraper {
 
   private async fetchRecentMessages(
     channel: TextChannel,
-    cutoffDate: Date
+    cutoffDate: Date,
+    client: Client,
+    threadStarterIds: Set<string>
   ): Promise<Collection<string, Message>> {
     const messages = new Collection<string, Message>();
     let lastMessageId: string | undefined;
     let batchCount = 0;
-    const MAX_BATCHES = 50; // Safety limit to prevent infinite loops
+    const MAX_BATCHES = 50;
+
+    const threadMessageIds = await this.threadManager.getThreadMessageIds(client, channel.id, true);
 
     while (batchCount < MAX_BATCHES) {
       try {
@@ -98,7 +105,7 @@ export class HistoricalScraper {
         const batch = await channel.messages.fetch(fetchOptions);
         
         if (batch.size === 0) {
-          break; // No more messages
+          break;
         }
 
         let hitCutoff = false;
@@ -109,18 +116,21 @@ export class HistoricalScraper {
           }
           
           if (!message.author.bot && message.content.trim()) {
+            if (threadMessageIds.has(message.id)) {
+              continue;
+            }
+            
             messages.set(message.id, message);
           }
         }
 
         if (hitCutoff) {
-          break; // Reached our time limit
+          break;
         }
 
         lastMessageId = batch.last()?.id;
         batchCount++;
 
-        // Small delay between batch fetches
         await this.delay(this.REQUEST_DELAY_MS);
       } catch (error) {
         Logger.error(`Error fetching message batch:`, error);
@@ -133,28 +143,24 @@ export class HistoricalScraper {
 
   private async processChannelMessages(
     messages: Collection<string, Message>,
-    guildId: string
+    guildId: string,
+    threadStarterIds: Set<string>
   ): Promise<Map<string, AnalysisData>> {
     const analysisMap = new Map<string, AnalysisData>();
 
     for (const message of messages.values()) {
       try {
-        // Skip thread messages - historical scraping should only process main channel messages
-        if (ThreadDetector.checkAndLogThread(message, 'HistoricalScraper')) {
-          continue;
-        }
         const symbols = this.extractSymbolsFromFirstLine(message.content);
         
         if (symbols.length === 0) {
           continue;
         }
 
-        const messageUrl = `https://discord.com/channels/${guildId}/${message.channelId}/${message.id}`;
+        const messageUrl = DiscordUrlGenerator.generateMessageUrl(guildId, message);
         const symbolStrings = symbols.map(s => s.symbol);
         
         const extractedUrls = this.urlExtractor.extractUrlsFromMessage(message);
         
-        Logger.debug(`Processing message ${message.id}: symbols=${symbolStrings.join(', ')}, charts=${extractedUrls.chartUrls.length}, attachments=${extractedUrls.attachmentUrls.length}`);
         
         const analysisData: AnalysisData = {
           messageId: message.id,
@@ -170,11 +176,24 @@ export class HistoricalScraper {
           hasCharts: extractedUrls.hasCharts
         };
 
-        // For each symbol, keep only the most recent analysis
         for (const symbol of symbolStrings) {
           const existing = analysisMap.get(symbol);
-          if (!existing || message.createdAt > existing.timestamp) {
+          
+          if (!existing) {
             analysisMap.set(symbol, analysisData);
+          } else {
+            const currentScore = this.calculateMessageAnalysisScore(message.content, analysisData);
+            const existingScore = this.calculateMessageAnalysisScore(existing.content, existing);
+            
+            if (currentScore > 0 && existingScore < 0) {
+              analysisMap.set(symbol, analysisData);
+            } else if (currentScore < 0 && existingScore > 0) {
+              // Keep existing
+            } else {
+              if (message.createdAt > existing.timestamp) {
+                analysisMap.set(symbol, analysisData);
+              }
+            }
           }
         }
       } catch (error) {
@@ -188,6 +207,44 @@ export class HistoricalScraper {
   private extractSymbolsFromFirstLine(content: string) {
     const firstLine = content.split('\n')[0] || '';
     return this.symbolDetector.detectSymbols(firstLine);
+  }
+
+  private calculateMessageAnalysisScore(content: string, analysisData: AnalysisData): number {
+    let score = 0;
+    if (content.length > 500) {
+      score += 50;
+    } else if (content.length > 200) {
+      score += 30;
+    } else if (content.length > 100) {
+      score += 20;
+    } else {
+      score += 10;
+    }
+    
+    if (analysisData.hasCharts) {
+      score += 40;
+    }
+    if (analysisData.attachmentUrls && analysisData.attachmentUrls.length > 0) {
+      score += 30;
+    }
+    
+    const lowerContent = content.toLowerCase();
+    const strongAnalysisKeywords = ['analysis', 'target', 'price target', 'technical analysis', 'chart analysis', 'support', 'resistance'];
+    for (const keyword of strongAnalysisKeywords) {
+      if (lowerContent.includes(keyword)) {
+        score += 20;
+      }
+    }
+    
+    if (content.length < 50) {
+      score -= 30;
+    }
+    
+    if (analysisData.symbols.length === 1) {
+      score += 15;
+    }
+    
+    return score;
   }
 
   private calculateRelevanceScore(content: string, symbolCount: number): number {
@@ -229,6 +286,7 @@ export class HistoricalScraper {
     
     return Math.min(score, 1.0);
   }
+
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
