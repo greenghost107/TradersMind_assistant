@@ -71,6 +71,12 @@ export class PermissionDiagnostic {
     'ReadMessageHistory'
   ];
 
+  private readonly REQUIRED_DISCUSSION_CHANNEL_PERMISSIONS: (keyof typeof PermissionsBitField.Flags)[] = [
+    'ViewChannel',
+    'SendMessages',
+    'ReadMessageHistory'
+  ];
+
   private readonly DIAGNOSTICS_DIR = path.join(process.cwd(), 'diagnostics');
 
   constructor() {
@@ -154,7 +160,7 @@ export class PermissionDiagnostic {
     config: BotConfig
   ): Promise<ChannelPermissionAnalysis[]> {
     const analyses: ChannelPermissionAnalysis[] = [];
-    const allChannelIds = [...config.analysisChannels, config.generalNoticesChannel];
+    const allChannelIds = [...config.analysisChannels, ...config.discussionChannels, config.generalNoticesChannel];
 
     for (const channelId of allChannelIds) {
       try {
@@ -186,12 +192,15 @@ export class PermissionDiagnostic {
     const missingPermissions: string[] = [];
 
     const isAnalysisChannel = config.analysisChannels.includes(channel.id);
+    const isDiscussionChannel = config.discussionChannels.includes(channel.id);
     const isGeneralChannel = config.generalNoticesChannel === channel.id;
     
     // Choose appropriate permission requirements based on channel type
     const channelPermissions = isAnalysisChannel 
       ? this.REQUIRED_ANALYSIS_CHANNEL_PERMISSIONS
-      : this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS;
+      : isDiscussionChannel
+        ? this.REQUIRED_DISCUSSION_CHANNEL_PERMISSIONS
+        : this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS;
 
     for (const permission of channelPermissions) {
       const hasPermission = permissions?.has(PermissionsBitField.Flags[permission]) ?? false;
@@ -216,8 +225,8 @@ export class PermissionDiagnostic {
       blockingFactors.push('Cannot view channel');
     }
     
-    // Only check SendMessages for general channel (where bot needs to reply)
-    if (isGeneralChannel && !permissions?.has(PermissionsBitField.Flags.SendMessages)) {
+    // Check SendMessages for channels where bot needs to send messages
+    if ((isGeneralChannel || isDiscussionChannel) && !permissions?.has(PermissionsBitField.Flags.SendMessages)) {
       blockingFactors.push('Cannot send messages');
     }
     
@@ -228,7 +237,7 @@ export class PermissionDiagnostic {
     return {
       channelId: channel.id,
       channelName: channel.name,
-      channelType: isAnalysisChannel ? 'analysis' : isGeneralChannel ? 'general' : 'unknown',
+      channelType: isAnalysisChannel ? 'analysis' : isDiscussionChannel ? 'discussion' : isGeneralChannel ? 'general' : 'unknown',
       hasAccess: permissions?.has(PermissionsBitField.Flags.ViewChannel) ?? false,
       requiredPermissions,
       permissionTrace,

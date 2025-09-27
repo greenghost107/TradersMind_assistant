@@ -9,6 +9,7 @@ import { MessageRetention } from './services/MessageRetention';
 import { EphemeralHandler } from './services/EphemeralHandler';
 import { HistoricalScraper } from './services/HistoricalScraper';
 import { PermissionDiagnostic, DiagnosticReport } from './services/PermissionDiagnostic';
+import { DiscussionChannelHandler } from './services/DiscussionChannelHandler';
 import { Logger } from './utils/Logger';
 import { ThreadManager } from './services/ThreadManager';
 
@@ -23,6 +24,7 @@ class TradersMindBot {
   private historicalScraper: HistoricalScraper;
   private permissionDiagnostic: PermissionDiagnostic;
   private threadManager: ThreadManager;
+  private discussionChannelHandler: DiscussionChannelHandler;
   private commands: Collection<string, any>;
   private isInitialized: boolean = false;
   private httpServer: any = null;
@@ -52,6 +54,7 @@ class TradersMindBot {
     this.historicalScraper = new HistoricalScraper(this.config.analysisChannels);
     this.permissionDiagnostic = new PermissionDiagnostic();
     this.threadManager = new ThreadManager(this.config.analysisChannels);
+    this.discussionChannelHandler = new DiscussionChannelHandler();
     this.channelScanner = new ChannelScanner(
       this.symbolDetector, 
       this.ephemeralHandler,
@@ -66,7 +69,14 @@ class TradersMindBot {
       Logger.botStartup(`${this.client.user?.tag} is online and ready!`);
       
       if (this.config) {
-        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}`);
+        const discussionInfo = this.config.discussionChannels.length > 0 
+          ? `, Discussion=[${this.config.discussionChannels.join(', ')}]`
+          : '';
+        const managerInfo = this.config.managerId
+          ? `, ManagerID=${this.config.managerId}`
+          : '';
+        
+        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}${discussionInfo}${managerInfo}`);
         
         // Run permission diagnostics before initialization (non-blocking)
         this.latestPermissionReport = await this.permissionDiagnostic.runStartupDiagnostics(this.client, this.config);
@@ -93,13 +103,21 @@ class TradersMindBot {
 
       Logger.debug(`Bot: Message ${message.id} passed thread check, proceeding with processing`);
 
+      // Handle general notices channel (existing functionality)
       await this.channelScanner.handleMessage(message, this.config);
       
+      // Handle analysis channels (existing functionality)
       if (this.config.analysisChannels.includes(message.channel.id)) {
         Logger.debug(`Bot: Message ${message.id} is in analysis channel, sending to indexing`);
         await this.analysisLinker.indexMessage(message);
       } else {
         Logger.debug(`Bot: Message ${message.id} is NOT in analysis channels: [${this.config.analysisChannels.join(', ')}]`);
+      }
+      
+      // Handle discussion channels (new functionality)
+      if (this.discussionChannelHandler.shouldProcessDiscussionMessage(message, this.config)) {
+        Logger.info(`📝 Processing discussion channel message from ${message.member?.displayName || message.author.tag}`);
+        await this.analysisLinker.indexMessage(message);
       }
     });
 

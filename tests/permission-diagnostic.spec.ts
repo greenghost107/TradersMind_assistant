@@ -17,6 +17,7 @@ test.describe('Permission Diagnostic', () => {
     
     const config: BotConfig = {
       analysisChannels: ['111111111', '222222222'], // data-channel-1, data-channel-2-long
+      discussionChannels: [],
       generalNoticesChannel: '333333333', // stam
       retentionHours: 24,
       guildId: '999999999'
@@ -131,9 +132,9 @@ test.describe('Permission Diagnostic', () => {
     // 2. General channel should show "Missing UseExternalEmojis" as a blocking factor (it needs write permissions)
     // 3. AttachFiles should no longer be required anywhere
 
-    const analysisChannel1 = report.channelAnalyses.find(c => c.channelId === '111111111');
-    const analysisChannel2 = report.channelAnalyses.find(c => c.channelId === '222222222');
-    const generalChannel = report.channelAnalyses.find(c => c.channelId === '333333333');
+    const analysisChannel1 = report.channelAnalyses.find((c: any) => c.channelId === '111111111');
+    const analysisChannel2 = report.channelAnalyses.find((c: any) => c.channelId === '222222222');
+    const generalChannel = report.channelAnalyses.find((c: any) => c.channelId === '333333333');
 
     // Analysis channels should NOT have SendMessages blocking factors (they only need read access):
     expect(analysisChannel1?.blockingFactors).not.toContain('Cannot send messages');
@@ -163,6 +164,7 @@ test.describe('Permission Diagnostic', () => {
     
     const config: BotConfig = {
       analysisChannels: ['111111111', '222222222'],
+      discussionChannels: [],
       generalNoticesChannel: '333333333',
       retentionHours: 24,
       guildId: '999999999'
@@ -276,14 +278,14 @@ test.describe('Permission Diagnostic', () => {
     expect(report.summary.criticalIssues.length).toBe(0);
     
     // Analysis channels should NOT have SendMessages blocking factors:
-    const analysisChannel1 = report.channelAnalyses.find(c => c.channelId === '111111111');
-    const analysisChannel2 = report.channelAnalyses.find(c => c.channelId === '222222222');
+    const analysisChannel1 = report.channelAnalyses.find((c: any) => c.channelId === '111111111');
+    const analysisChannel2 = report.channelAnalyses.find((c: any) => c.channelId === '222222222');
     
     expect(analysisChannel1?.blockingFactors).not.toContain('Cannot send messages');
     expect(analysisChannel2?.blockingFactors).not.toContain('Cannot send messages');
     
     // General channel should NOT require AttachFiles:
-    const generalChannel = report.channelAnalyses.find(c => c.channelId === '333333333');
+    const generalChannel = report.channelAnalyses.find((c: any) => c.channelId === '333333333');
     expect(generalChannel?.missingPermissions).not.toContain('AttachFiles');
   });
 });

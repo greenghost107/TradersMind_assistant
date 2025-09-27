@@ -25,6 +25,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         '• `LONG_ANALYSIS_CHANNEL`\n' +
         '• `SHORT_ANALYSIS_CHANNEL`\n' +
         '• `MANAGER_GENERAL_MESSAGES_CHANNEL`\n\n' +
+        'Optional configuration:\n' +
+        '• `LONG_DISCUSSION_CHANNEL` - For manager discussion monitoring\n' +
+        '• `SHORT_DISCUSSION_CHANNEL` - For manager discussion monitoring\n' +
+        '• `MANAGER_ROLES` - Comma-separated list of manager role names\n\n' +
         'Please contact an administrator to configure these channels.'
       )
       .setColor(Colors.Red)
@@ -37,6 +41,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const analysis1Channel = interaction.guild.channels.cache.get(config.analysisChannels[0]!);
   const analysis2Channel = interaction.guild.channels.cache.get(config.analysisChannels[1]!);
   const generalChannel = interaction.guild.channels.cache.get(config.generalNoticesChannel);
+  
+  // Get discussion channels (optional)
+  const discussionChannels = config.discussionChannels.map(id => 
+    interaction.guild!.channels.cache.get(id) || `<#${id}> (Channel not found)`
+  );
   
   // Get retention statistics
   const retentionStats = MessageRetention.getGlobalStats();
@@ -56,6 +65,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         value: `${generalChannel || `<#${config.generalNoticesChannel}> (Channel not found)`}`,
         inline: false
       },
+      ...(config.discussionChannels.length > 0 ? [{
+        name: '💬 Discussion Channels (Manager Only)',
+        value: discussionChannels.map((ch, i) => `• ${ch}`).join('\n'),
+        inline: false
+      }] : []),
+      ...(config.managerId ? [{
+        name: '👑 Manager ID',
+        value: `• ${config.managerId}`,
+        inline: false
+      }] : []),
       {
         name: '⏰ Message Retention',
         value: retentionStats?.isDebugMode 
@@ -79,6 +98,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       '• Bot monitors the general notices channel for stock symbols\n' +
       '• When symbols are detected, interactive buttons appear\n' +
       '• Click buttons to see related analysis from analysis channels\n' +
+      (config.discussionChannels.length > 0 ? '• Bot also monitors discussion channels for manager messages\n' : '') +
       '• All responses are private (ephemeral) to you only\n' +
       (retentionStats?.isDebugMode ? '\n🔧 **DEBUG MODE ACTIVE** - Fast cleanup for testing' : '')
     )
