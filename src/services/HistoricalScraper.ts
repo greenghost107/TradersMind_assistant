@@ -54,7 +54,7 @@ export class HistoricalScraper {
         const channelResults = await this.processChannelMessages(
           messages,
           channel.guildId || 'unknown',
-          false // not a discussion channel
+          true // apply manager filtering to analysis channels too
         );
         
         Logger.debug(`Found ${channelResults.size} symbols in analysis channel ${channel.name}`);
@@ -184,14 +184,14 @@ export class HistoricalScraper {
   private async processChannelMessages(
     messages: Collection<string, Message>,
     guildId: string,
-    isDiscussionChannel: boolean = false
+    applyManagerFiltering: boolean = false
   ): Promise<Map<string, AnalysisData>> {
     const analysisMap = new Map<string, AnalysisData>();
 
     for (const message of messages.values()) {
       try {
-        // If this is a discussion channel, filter for manager messages only
-        if (isDiscussionChannel && !this.discussionChannelHandler.shouldProcessDiscussionMessage(message, this.config)) {
+        // Filter for manager messages only if filtering is enabled
+        if (applyManagerFiltering && !this.discussionChannelHandler.isManagerMessage(message, this.config)) {
           continue;
         }
         

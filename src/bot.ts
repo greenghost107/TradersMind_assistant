@@ -117,18 +117,21 @@ class TradersMindBot {
       // Handle general notices channel (existing functionality)
       await this.channelScanner.handleMessage(message, this.config);
       
-      // Handle analysis channels (existing functionality)
-      if (this.config.analysisChannels.includes(message.channel.id)) {
-        Logger.debug(`Bot: Message ${message.id} is in analysis channel, sending to indexing`);
-        await this.analysisLinker.indexMessage(message);
-      } else {
-        Logger.debug(`Bot: Message ${message.id} is NOT in analysis channels: [${this.config.analysisChannels.join(', ')}]`);
-      }
+      // Handle all configured channels - only process manager messages
+      const isAnalysisChannel = this.config.analysisChannels.includes(message.channel.id);
+      const isDiscussionChannel = this.config.discussionChannels.includes(message.channel.id);
       
-      // Handle discussion channels (new functionality)
-      if (this.discussionChannelHandler.shouldProcessDiscussionMessage(message, this.config)) {
-        Logger.info(`📝 Processing discussion channel message from ${message.member?.displayName || message.author.tag}`);
-        await this.analysisLinker.indexMessage(message);
+      if (isAnalysisChannel || isDiscussionChannel) {
+        if (this.discussionChannelHandler.isManagerMessage(message, this.config)) {
+          const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
+          Logger.info(`📊 Processing ${channelType} channel message from manager ${message.member?.displayName || message.author.tag}`);
+          await this.analysisLinker.indexMessage(message);
+        } else {
+          const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
+          Logger.debug(`Bot: Skipping ${channelType} channel message ${message.id} from non-manager ${message.author.tag}`);
+        }
+      } else {
+        Logger.debug(`Bot: Message ${message.id} is NOT in configured channels`);
       }
     });
 
