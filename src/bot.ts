@@ -12,6 +12,7 @@ import { PermissionDiagnostic, DiagnosticReport } from './services/PermissionDia
 import { DiscussionChannelHandler } from './services/DiscussionChannelHandler';
 import { Logger } from './utils/Logger';
 import { ThreadManager } from './services/ThreadManager';
+import { HebrewUpdateDetector } from './services/HebrewUpdateDetector';
 
 class TradersMindBot {
   private client: Client;
@@ -25,6 +26,7 @@ class TradersMindBot {
   private permissionDiagnostic: PermissionDiagnostic;
   private threadManager: ThreadManager;
   private discussionChannelHandler: DiscussionChannelHandler;
+  private hebrewUpdateDetector: HebrewUpdateDetector;
   private commands: Collection<string, any>;
   private isInitialized: boolean = false;
   private httpServer: any = null;
@@ -55,6 +57,7 @@ class TradersMindBot {
     this.permissionDiagnostic = new PermissionDiagnostic();
     this.threadManager = new ThreadManager(this.config.analysisChannels);
     this.discussionChannelHandler = new DiscussionChannelHandler();
+    this.hebrewUpdateDetector = new HebrewUpdateDetector();
     this.channelScanner = new ChannelScanner(
       this.symbolDetector, 
       this.ephemeralHandler,
@@ -102,6 +105,14 @@ class TradersMindBot {
       }
 
       Logger.debug(`Bot: Message ${message.id} passed thread check, proceeding with processing`);
+
+      // Check for Hebrew daily update and trigger cleanup if detected
+      if (message.channelId === this.config.generalNoticesChannel) {
+        if (this.hebrewUpdateDetector.isHebrewDailyUpdate(message.content)) {
+          Logger.info(`🔄 Hebrew daily update detected, performing immediate cleanup before processing new buttons`);
+          await this.messageRetention.performImmediateCleanup();
+        }
+      }
 
       // Handle general notices channel (existing functionality)
       await this.channelScanner.handleMessage(message, this.config);

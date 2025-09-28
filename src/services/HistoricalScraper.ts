@@ -42,15 +42,13 @@ export class HistoricalScraper {
         
         Logger.info(`Scraping #${channel.name} (${channelId})...`);
         
-        const threadStarterIds = await this.threadManager.getThreadStarterMessageIds(client, channelId, true);
         
-        const messages = await this.fetchRecentMessages(channel, cutoffDate, client, threadStarterIds);
+        const messages = await this.fetchRecentMessages(channel, cutoffDate, client);
         Logger.info(`Found ${messages.size} messages in #${channel.name}`);
 
         const channelResults = await this.processChannelMessages(
           messages,
-          channel.guildId || 'unknown',
-          threadStarterIds
+          channel.guildId || 'unknown'
         );
         
         Logger.debug(`Found ${channelResults.size} symbols in ${channel.name}`);
@@ -85,8 +83,7 @@ export class HistoricalScraper {
   private async fetchRecentMessages(
     channel: TextChannel,
     cutoffDate: Date,
-    client: Client,
-    threadStarterIds: Set<string>
+    client: Client
   ): Promise<Collection<string, Message>> {
     const messages = new Collection<string, Message>();
     let lastMessageId: string | undefined;
@@ -143,8 +140,7 @@ export class HistoricalScraper {
 
   private async processChannelMessages(
     messages: Collection<string, Message>,
-    guildId: string,
-    threadStarterIds: Set<string>
+    guildId: string
   ): Promise<Map<string, AnalysisData>> {
     const analysisMap = new Map<string, AnalysisData>();
 

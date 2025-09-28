@@ -274,6 +274,114 @@ export class MessageRetention {
     this.retentionJobs.delete(messageId);
   }
 
+  public async performImmediateCleanup(): Promise<void> {
+    console.log('🧹 Performing immediate cleanup (Hebrew update triggered)...');
+    
+    if (!this.client || !this.config) {
+      console.log('⚠️ MessageRetention not properly initialized for immediate cleanup');
+      return;
+    }
+
+    const startTime = Date.now();
+    let totalDeleted = 0;
+    let totalErrors = 0;
+
+    try {
+      // Process all pending retention jobs immediately
+      const expiredJobs: RetentionJob[] = [];
+      
+      for (const [messageId, job] of this.retentionJobs.entries()) {
+        expiredJobs.push(job);
+        this.retentionJobs.delete(messageId);
+      }
+
+      console.log(`🧹 Processing ${expiredJobs.length} pending retention jobs...`);
+
+      // Delete messages from retention jobs
+      for (const job of expiredJobs) {
+        try {
+          const channel = this.client.channels.cache.get(job.channelId) as TextChannel;
+          if (!channel) continue;
+
+          const message = await channel.messages.fetch(job.messageId);
+          if (message && message.author.id === this.client.user?.id) {
+            await message.delete();
+            totalDeleted++;
+          }
+        } catch (error: any) {
+          if (error.code !== 10008) { // Ignore "message not found"
+            totalErrors++;
+          }
+        }
+      }
+
+      // Clear group tracking
+      this.groupedJobs.clear();
+
+      // Perform additional bot message cleanup
+      await this.clearAllBotButtons();
+
+    } catch (error) {
+      console.error('❌ Error during immediate cleanup:', error);
+      totalErrors++;
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Immediate cleanup complete: ${totalDeleted} messages deleted, ${totalErrors} errors (${duration}ms)`);
+  }
+
+  public async clearAllBotButtons(): Promise<void> {
+    if (!this.client || !this.config) return;
+
+    console.log('🧹 Clearing all bot button messages...');
+    
+    try {
+      const allChannels = [
+        this.config.generalNoticesChannel,
+        ...this.config.analysisChannels
+      ];
+
+      let totalCleared = 0;
+
+      for (const channelId of allChannels) {
+        try {
+          const channel = this.client.channels.cache.get(channelId) as TextChannel;
+          if (!channel) continue;
+
+          const messages = await channel.messages.fetch({ limit: 50 });
+          const botMessages = messages.filter(msg => 
+            msg.author.id === this.client!.user?.id && 
+            msg.components && 
+            msg.components.length > 0
+          );
+
+          for (const message of botMessages.values()) {
+            try {
+              await message.delete();
+              totalCleared++;
+            } catch (error: any) {
+              if (error.code !== 10008) {
+                console.error(`Error deleting bot button message ${message.id}:`, error.message);
+              }
+            }
+          }
+
+        } catch (error: any) {
+          if (error.code !== 50001 && error.code !== 50013) {
+            console.error(`Error clearing buttons in channel ${channelId}:`, error.message);
+          }
+        }
+      }
+
+      if (totalCleared > 0) {
+        console.log(`🧹 Cleared ${totalCleared} bot button messages`);
+      }
+
+    } catch (error) {
+      console.error('Error clearing bot buttons:', error);
+    }
+  }
+
   public async performFinalCleanup(): Promise<void> {
     console.log('🧹 Performing final cleanup before shutdown...');
     
