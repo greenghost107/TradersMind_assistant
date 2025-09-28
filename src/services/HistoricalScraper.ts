@@ -5,18 +5,23 @@ import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
 import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
 import { ThreadManager } from './ThreadManager';
+import { DiscussionChannelHandler } from './DiscussionChannelHandler';
 
 export class HistoricalScraper {
   private symbolDetector: SymbolDetector;
   private urlExtractor: UrlExtractor;
   private threadManager: ThreadManager;
+  private discussionChannelHandler: DiscussionChannelHandler;
+  private config: BotConfig;
   private readonly DAYS_TO_SCRAPE = 7;
   private readonly REQUEST_DELAY_MS = 100;
 
-  constructor(analysisChannels: string[]) {
+  constructor(config: BotConfig) {
+    this.config = config;
     this.symbolDetector = new SymbolDetector();
     this.urlExtractor = new UrlExtractor();
-    this.threadManager = new ThreadManager(analysisChannels);
+    this.threadManager = new ThreadManager(config.analysisChannels);
+    this.discussionChannelHandler = new DiscussionChannelHandler();
   }
 
   public async scrapeHistoricalAnalysis(
@@ -32,6 +37,7 @@ export class HistoricalScraper {
     let totalMessagesProcessed = 0;
     let totalSymbolsFound = 0;
 
+    // Scrape analysis channels
     for (const channelId of config.analysisChannels) {
       try {
         const channel = await client.channels.fetch(channelId) as TextChannel;
@@ -40,18 +46,18 @@ export class HistoricalScraper {
           continue;
         }
         
-        Logger.info(`Scraping #${channel.name} (${channelId})...`);
-        
+        Logger.info(`Scraping analysis channel #${channel.name} (${channelId})...`);
         
         const messages = await this.fetchRecentMessages(channel, cutoffDate, client);
-        Logger.info(`Found ${messages.size} messages in #${channel.name}`);
+        Logger.info(`Found ${messages.size} messages in analysis channel #${channel.name}`);
 
         const channelResults = await this.processChannelMessages(
           messages,
-          channel.guildId || 'unknown'
+          channel.guildId || 'unknown',
+          false // not a discussion channel
         );
         
-        Logger.debug(`Found ${channelResults.size} symbols in ${channel.name}`);
+        Logger.debug(`Found ${channelResults.size} symbols in analysis channel ${channel.name}`);
         for (const [symbol, analysisData] of channelResults) {
           const existing = latestAnalysisMap.get(symbol);
           if (!existing || analysisData.timestamp > existing.timestamp) {
@@ -64,7 +70,44 @@ export class HistoricalScraper {
 
         await this.delay(this.REQUEST_DELAY_MS);
       } catch (error) {
-        Logger.error(`Error scraping channel ${channelId}:`, error);
+        Logger.error(`Error scraping analysis channel ${channelId}:`, error);
+      }
+    }
+
+    // Scrape discussion channels for manager messages
+    for (const channelId of config.discussionChannels) {
+      try {
+        const channel = await client.channels.fetch(channelId) as TextChannel;
+        if (!channel || !channel.isTextBased()) {
+          Logger.warn(`Could not access discussion channel ${channelId}`);
+          continue;
+        }
+        
+        Logger.info(`Scraping discussion channel #${channel.name} (${channelId}) for manager messages...`);
+        
+        const messages = await this.fetchRecentMessages(channel, cutoffDate, client);
+        Logger.info(`Found ${messages.size} messages in discussion channel #${channel.name}`);
+
+        const channelResults = await this.processChannelMessages(
+          messages,
+          channel.guildId || 'unknown',
+          true // is a discussion channel
+        );
+        
+        Logger.debug(`Found ${channelResults.size} symbols in discussion channel ${channel.name}`);
+        for (const [symbol, analysisData] of channelResults) {
+          const existing = latestAnalysisMap.get(symbol);
+          if (!existing || analysisData.timestamp > existing.timestamp) {
+            latestAnalysisMap.set(symbol, analysisData);
+          }
+        }
+
+        totalMessagesProcessed += messages.size;
+        totalSymbolsFound += channelResults.size;
+
+        await this.delay(this.REQUEST_DELAY_MS);
+      } catch (error) {
+        Logger.error(`Error scraping discussion channel ${channelId}:`, error);
       }
     }
 
@@ -140,12 +183,18 @@ export class HistoricalScraper {
 
   private async processChannelMessages(
     messages: Collection<string, Message>,
-    guildId: string
+    guildId: string,
+    isDiscussionChannel: boolean = false
   ): Promise<Map<string, AnalysisData>> {
     const analysisMap = new Map<string, AnalysisData>();
 
     for (const message of messages.values()) {
       try {
+        // If this is a discussion channel, filter for manager messages only
+        if (isDiscussionChannel && !this.discussionChannelHandler.shouldProcessDiscussionMessage(message, this.config)) {
+          continue;
+        }
+        
         const symbols = this.extractSymbolsFromFirstLine(message.content);
         
         if (symbols.length === 0) {

@@ -53,7 +53,7 @@ class TradersMindBot {
     this.analysisLinker = new AnalysisLinker();
     this.messageRetention = new MessageRetention();
     this.ephemeralHandler = new EphemeralHandler(this.analysisLinker, this.messageRetention);
-    this.historicalScraper = new HistoricalScraper(this.config.analysisChannels);
+    this.historicalScraper = new HistoricalScraper(this.config);
     this.permissionDiagnostic = new PermissionDiagnostic();
     this.threadManager = new ThreadManager(this.config.analysisChannels);
     this.discussionChannelHandler = new DiscussionChannelHandler();
