@@ -110,7 +110,7 @@ export class EphemeralHandler {
           
           // Add to retention with group information
           if (this.messageRetention) {
-            this.messageRetention.addMessageForRetention(botMessage, undefined, groupId);
+            this.messageRetention.addMessageForRetention(botMessage, groupId);
           }
         }
         

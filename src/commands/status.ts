@@ -52,7 +52,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const embed = new EmbedBuilder()
     .setTitle('📊 Bot Configuration & Status')
-    .setColor(retentionStats?.isDebugMode ? Colors.Orange : Colors.Blue)
+    .setColor(Colors.Blue)
     .addFields([
       {
         name: '📈 Analysis Channels',
@@ -77,9 +77,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       }] : []),
       {
         name: '⏰ Message Retention',
-        value: retentionStats?.isDebugMode 
-          ? `🔧 DEBUG: ${config.retentionHours} seconds`
-          : `${config.retentionHours} hours`,
+        value: '26 hours',
         inline: true
       },
       {
@@ -99,8 +97,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       '• When symbols are detected, interactive buttons appear\n' +
       '• Click buttons to see related analysis from analysis channels\n' +
       (config.discussionChannels.length > 0 ? '• Bot also monitors discussion channels for manager messages\n' : '') +
-      '• All responses are private (ephemeral) to you only\n' +
-      (retentionStats?.isDebugMode ? '\n🔧 **DEBUG MODE ACTIVE** - Fast cleanup for testing' : '')
+      '• All responses are private (ephemeral) to you only'
     )
     .setFooter({
       text: 'Stock symbols are detected using pattern matching with confidence scoring'

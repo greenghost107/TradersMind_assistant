@@ -287,7 +287,7 @@ class TradersMindBot {
         config: this.config ? {
           analysisChannels: this.config.analysisChannels.length,
           generalChannel: !!this.config.generalNoticesChannel,
-          retentionHours: this.config.retentionHours
+          retentionHours: 26
         } : null,
         permissions: permissionStatus,
         retention: stats,

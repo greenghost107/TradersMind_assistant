@@ -11,7 +11,6 @@ describe('DiscussionChannelHandler', () => {
       analysisChannels: ['analysis-1', 'analysis-2'],
       discussionChannels: ['discussion-1', 'discussion-2'],
       generalNoticesChannel: 'general-channel',
-      retentionHours: 24,
       guildId: 'test-guild',
       managerId: 'manager-user-id-12345'
     };

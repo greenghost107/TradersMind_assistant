@@ -19,7 +19,6 @@ test.describe('Permission Diagnostic', () => {
       analysisChannels: ['111111111', '222222222'], // data-channel-1, data-channel-2-long
       discussionChannels: [],
       generalNoticesChannel: '333333333', // stam
-      retentionHours: 24,
       guildId: '999999999'
     };
 
@@ -166,7 +165,6 @@ test.describe('Permission Diagnostic', () => {
       analysisChannels: ['111111111', '222222222'],
       discussionChannels: [],
       generalNoticesChannel: '333333333',
-      retentionHours: 24,
       guildId: '999999999'
     };
 

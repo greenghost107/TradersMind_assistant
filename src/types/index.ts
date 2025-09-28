@@ -2,7 +2,6 @@ export interface BotConfig {
   analysisChannels: string[];
   discussionChannels: string[];
   generalNoticesChannel: string;
-  retentionHours: number;
   guildId: string;
   managerId?: string;
 }

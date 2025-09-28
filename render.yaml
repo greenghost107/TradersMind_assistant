@@ -16,7 +16,5 @@ services:
         sync: false
       - key: MANAGER_GENERAL_MESSAGES_CHANNEL
         sync: false
-      - key: MESSAGE_RETENTION_HOURS
-        value: "26"
     autoDeploy: true
     healthCheckPath: /health

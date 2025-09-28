@@ -99,8 +99,6 @@ LONG_ANALYSIS_CHANNEL=123456789012345678
 SHORT_ANALYSIS_CHANNEL=987654321098765432
 MANAGER_GENERAL_MESSAGES_CHANNEL=456789123456789123
 
-# Optional: Message retention in hours (default: 26)
-MESSAGE_RETENTION_HOURS=26
 ```
 
 ### 4. Register the Status Command (One-time setup)
@@ -379,7 +377,6 @@ In the Render dashboard, go to the "Environment" tab and add these variables:
 | `LONG_ANALYSIS_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
 | `SHORT_ANALYSIS_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
 | `MANAGER_GENERAL_MESSAGES_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
-| `MESSAGE_RETENTION_HOURS` | `26` | Default value (optional) |
 
 **How to get Discord Channel IDs:**
 1. In Discord: User Settings → Advanced → Enable "Developer Mode"

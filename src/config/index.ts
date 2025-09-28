@@ -11,7 +11,6 @@ export const ENV = {
   SHORT_DISCUSSION_CHANNEL: process.env.SHORT_DISCUSSION_CHANNEL || '',
   MANAGER_GENERAL_MESSAGES_CHANNEL: process.env.MANAGER_GENERAL_MESSAGES_CHANNEL || '',
   MANAGER_ID: process.env.MANAGER_ID || '',
-  MESSAGE_RETENTION_HOURS: parseInt(process.env.MESSAGE_RETENTION_HOURS || '26'),
   NODE_ENV: process.env.NODE_ENV || 'development'
 };
 
@@ -29,7 +28,6 @@ export const getBotConfig = (): BotConfig | null => {
     analysisChannels: [ENV.LONG_ANALYSIS_CHANNEL, ENV.SHORT_ANALYSIS_CHANNEL],
     discussionChannels,
     generalNoticesChannel: ENV.MANAGER_GENERAL_MESSAGES_CHANNEL,
-    retentionHours: ENV.MESSAGE_RETENTION_HOURS,
     guildId: '' // Not needed for env-based config
   };
   

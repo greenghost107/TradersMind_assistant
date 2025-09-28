@@ -7,27 +7,16 @@ export class MessageRetention {
   private cleanupInterval: NodeJS.Timeout | null = null;
   private config: BotConfig | null = null;
   private client: Client | null = null;
-  private isDebugMode: boolean = false;
+  private static readonly RETENTION_HOURS = 26;
+  private static readonly CLEANUP_INTERVAL_HOURS = 1;
 
   public initialize(client: Client, config: BotConfig): void {
     this.client = client;
     this.config = config;
-    this.isDebugMode = config.retentionHours < 1;
-    
-    if (this.isDebugMode) {
-      console.log('🔧 [DEBUG] Debug mode enabled for message retention');
-      console.log(`🔧 [DEBUG] Retention time: ${config.retentionHours * 3600} seconds`);
-      console.log('🔧 [DEBUG] Cleanup will run every 10 seconds');
-    }
   }
 
-  public addMessageForRetention(message: Message, retentionHours?: number, groupId?: string): void {
-    const effectiveRetentionHours = retentionHours || this.config?.retentionHours || 26;
-    
-    // In debug mode, treat hours as seconds for faster testing
-    const retentionMs = this.isDebugMode 
-      ? effectiveRetentionHours * 1000  // seconds to milliseconds
-      : effectiveRetentionHours * 60 * 60 * 1000; // hours to milliseconds
+  public addMessageForRetention(message: Message, groupId?: string): void {
+    const retentionMs = MessageRetention.RETENTION_HOURS * 60 * 60 * 1000; // hours to milliseconds
     
     const deleteAt = new Date(Date.now() + retentionMs);
     
@@ -50,11 +39,6 @@ export class MessageRetention {
 
     this.retentionJobs.set(message.id, job);
     
-    if (this.isDebugMode) {
-      const timeUnit = this.isDebugMode ? 'seconds' : 'hours';
-      const timeValue = this.isDebugMode ? effectiveRetentionHours : effectiveRetentionHours;
-      console.log(`🔧 [DEBUG] Added message ${message.id} for deletion in ${timeValue} ${timeUnit} (at ${deleteAt.toLocaleTimeString()})`);
-    }
   }
 
   public startCleanupScheduler(): void {
@@ -62,15 +46,13 @@ export class MessageRetention {
       clearInterval(this.cleanupInterval);
     }
 
-    // Use 10 seconds in debug mode, 1 hour in normal mode
-    const cleanupIntervalMs = this.isDebugMode ? 10 * 1000 : 60 * 60 * 1000;
+    const cleanupIntervalMs = MessageRetention.CLEANUP_INTERVAL_HOURS * 60 * 60 * 1000;
     
     this.cleanupInterval = setInterval(() => {
       this.performCleanup();
     }, cleanupIntervalMs);
 
-    const intervalText = this.isDebugMode ? '10 seconds' : '1 hour';
-    console.log(`🕒 Message retention cleanup scheduler started (every ${intervalText})`);
+    console.log(`🕒 Message retention cleanup scheduler started (every ${MessageRetention.CLEANUP_INTERVAL_HOURS} hour(s))`);
     
     // Run initial cleanup
     this.performCleanup();
@@ -94,9 +76,6 @@ export class MessageRetention {
     const expiredJobs: RetentionJob[] = [];
     const processedGroups = new Set<string>();
     
-    if (this.isDebugMode) {
-      console.log(`🔧 [DEBUG] Running cleanup check at ${now.toLocaleTimeString()}, ${this.retentionJobs.size} pending jobs`);
-    }
     
     // Collect expired jobs and group information
     for (const [messageId, job] of this.retentionJobs.entries()) {
@@ -122,23 +101,10 @@ export class MessageRetention {
           this.groupedJobs.delete(job.groupId);
         }
         
-        if (this.isDebugMode) {
-          const ageMs = now.getTime() - job.deleteAt.getTime();
-          const groupInfo = job.groupId ? ` (group: ${job.groupId})` : '';
-          console.log(`🔧 [DEBUG] Found expired job: ${messageId}${groupInfo} (${ageMs}ms overdue)`);
-        }
       }
     }
 
     if (expiredJobs.length === 0) {
-      if (this.isDebugMode && this.retentionJobs.size > 0) {
-        const nextJob = Array.from(this.retentionJobs.values())
-          .sort((a, b) => a.deleteAt.getTime() - b.deleteAt.getTime())[0];
-        if (nextJob) {
-          const timeToNext = nextJob.deleteAt.getTime() - now.getTime();
-          console.log(`🔧 [DEBUG] No expired jobs found. Next cleanup in ${Math.round(timeToNext/1000)}s`);
-        }
-      }
       return;
     }
 
@@ -194,7 +160,7 @@ export class MessageRetention {
       ];
 
       for (const channelId of allChannels) {
-        await this.cleanupChannelMessages(channelId, this.config.retentionHours);
+        await this.cleanupChannelMessages(channelId);
       }
       
     } catch (error) {
@@ -202,14 +168,14 @@ export class MessageRetention {
     }
   }
 
-  private async cleanupChannelMessages(channelId: string, retentionHours: number): Promise<void> {
+  private async cleanupChannelMessages(channelId: string): Promise<void> {
     if (!this.client) return;
 
     try {
       const channel = this.client.channels.cache.get(channelId) as TextChannel;
       if (!channel) return;
 
-      const cutoffTime = Date.now() - (retentionHours * 60 * 60 * 1000);
+      const cutoffTime = Date.now() - (MessageRetention.RETENTION_HOURS * 60 * 60 * 1000);
       
       const messages = await channel.messages.fetch({ limit: 100 });
       const botMessages = messages.filter(msg => 
@@ -242,15 +208,13 @@ export class MessageRetention {
     pendingJobs: number; 
     oldestJob: Date | null; 
     newestJob: Date | null;
-    isDebugMode: boolean;
   } {
     const jobs = Array.from(this.retentionJobs.values());
     
     return {
       pendingJobs: jobs.length,
       oldestJob: jobs.length > 0 ? new Date(Math.min(...jobs.map(j => j.deleteAt.getTime()))) : null,
-      newestJob: jobs.length > 0 ? new Date(Math.max(...jobs.map(j => j.deleteAt.getTime()))) : null,
-      isDebugMode: this.isDebugMode
+      newestJob: jobs.length > 0 ? new Date(Math.max(...jobs.map(j => j.deleteAt.getTime()))) : null
     };
   }
 
@@ -265,7 +229,6 @@ export class MessageRetention {
     pendingJobs: number; 
     oldestJob: Date | null; 
     newestJob: Date | null;
-    isDebugMode: boolean;
   } | null {
     return MessageRetention.instance?.getRetentionStats() || null;
   }
