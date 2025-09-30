@@ -13,6 +13,7 @@ import { DiscussionChannelHandler } from './services/DiscussionChannelHandler';
 import { Logger } from './utils/Logger';
 import { ThreadManager } from './services/ThreadManager';
 import { HebrewUpdateDetector } from './services/HebrewUpdateDetector';
+import { WordFrequencyAnalyzer } from './services/WordFrequencyAnalyzer';
 
 class TradersMindBot {
   private client: Client;
@@ -27,6 +28,7 @@ class TradersMindBot {
   private threadManager: ThreadManager;
   private discussionChannelHandler: DiscussionChannelHandler;
   private hebrewUpdateDetector: HebrewUpdateDetector;
+  private wordFrequencyAnalyzer: WordFrequencyAnalyzer;
   private commands: Collection<string, any>;
   private isInitialized: boolean = false;
   private httpServer: any = null;
@@ -58,6 +60,7 @@ class TradersMindBot {
     this.threadManager = new ThreadManager(this.config.analysisChannels);
     this.discussionChannelHandler = new DiscussionChannelHandler();
     this.hebrewUpdateDetector = new HebrewUpdateDetector();
+    this.wordFrequencyAnalyzer = new WordFrequencyAnalyzer();
     this.channelScanner = new ChannelScanner(
       this.symbolDetector, 
       this.ephemeralHandler,
@@ -86,6 +89,12 @@ class TradersMindBot {
         
         await this.initializeBot();
         this.startBackgroundServices();
+        
+        // Start word frequency analysis if active
+        if (this.wordFrequencyAnalyzer.isActive()) {
+          Logger.info('Word frequency analyzer is active - starting historical scan...');
+          await this.wordFrequencyAnalyzer.scanHistoricalMessages(this.client, this.config);
+        }
       } else {
         Logger.warn('Bot is not configured. Please set the required environment variables.');
       }
@@ -126,6 +135,9 @@ class TradersMindBot {
           const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
           Logger.info(`📊 Processing ${channelType} channel message from manager ${message.member?.displayName || message.author.tag}`);
           await this.analysisLinker.indexMessage(message);
+          
+          // Process message for word frequency analysis if active
+          await this.wordFrequencyAnalyzer.processMessage(message, this.config);
         } else {
           const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
           Logger.debug(`Bot: Skipping ${channelType} channel message ${message.id} from non-manager ${message.author.tag}`);
