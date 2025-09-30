@@ -102,7 +102,7 @@ export class TopPicksParser {
       'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'HAS', 'HIS', 'HOW', 'MAN', 
       'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WHO', 'BOY', 'DID', 'ITS', 
       'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE', 'USD', 'CEO', 'IPO',
-      'SEC', 'FDA', 'API', 'URL', 'PDF', 'FAQ', 'LONG', 'SHORT'
+      'SEC', 'FDA', 'API', 'URL', 'PDF', 'FAQ', 'LONG', 'SHORT', 'AVWAP'
     ]);
 
     if (excludeWords.has(symbol)) {
