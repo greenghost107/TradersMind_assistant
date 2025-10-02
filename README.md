@@ -119,8 +119,22 @@ node register-status-command.js
 npm run build
 npm start
 
+# Production mode (all platforms including Windows):
+npm run start:production
+
 # Or for development:
 npm run dev
+```
+
+#### Windows Users
+The project includes `cross-env` for Windows compatibility. All environment variable scripts work on Windows, Mac, and Linux:
+
+```bash
+# These commands work on Windows:
+npm run start:production
+npm run start:development
+npm run dev:production
+npm run dev:development
 ```
 
 ## Usage
@@ -177,13 +191,27 @@ npm run dev
 
 ## Development
 
+### Available Scripts (Windows/Mac/Linux Compatible)
+
+**Development:**
 - `npm run dev` - Start in development mode with ts-node
+- `npm run dev:development` - Development mode with NODE_ENV=development
+- `npm run dev:production` - Development mode with NODE_ENV=production
+
+**Production:**
+- `npm start` - Start built application (default environment)
+- `npm run start:production` - Start with NODE_ENV=production
+- `npm run start:development` - Start with NODE_ENV=development
+
+**Build & Test:**
 - `npm run build` - Compile TypeScript to JavaScript
 - `npm run test` - Run Jest unit tests
 - `npm run test:playwright` - Run Playwright integration tests
 - `npm run test:all` - Run all tests
 - `npm run lint` - Run ESLint
 - `npm run typecheck` - Run TypeScript type checking
+
+> **Note:** All scripts use `cross-env` for cross-platform environment variable support, ensuring compatibility across Windows, Mac, and Linux.
 
 ### Testing
 
@@ -309,6 +337,11 @@ Monitors these essential permissions for bot functionality:
 - **Channel Permission Overrides**: @everyone or role overrides blocking access  
 - **Missing EmbedLinks**: Analysis previews won't display rich formatting
 - **SendMessages Required in Wrong Channel**: Bot only needs SendMessages in general channel, not analysis channels
+
+**Windows Users:**
+- **NODE_ENV errors**: Use `npm run start:production` instead of manual NODE_ENV commands
+- **Cross-platform scripts**: All npm scripts work on Windows thanks to `cross-env` package
+- **PowerShell vs CMD**: All npm scripts work in both PowerShell and Command Prompt
 
 The diagnostic system ensures you have complete visibility into permission issues without affecting bot performance or reliability.
 
