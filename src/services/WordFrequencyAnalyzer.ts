@@ -58,21 +58,31 @@ export class WordFrequencyAnalyzer {
       return;
     }
 
-    Logger.info('Starting historical message scan for word frequency analysis...');
+    Logger.info('🔍 Starting historical message scan for word frequency analysis...');
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 200);
+    cutoffDate.setDate(cutoffDate.getDate() - 30); // Reduced from 200 to 30 days
+    Logger.info(`📅 Scanning messages from ${cutoffDate.toISOString().split('T')[0]} onwards`);
 
     const allChannels = [...config.analysisChannels, ...config.discussionChannels];
+    Logger.info(`📊 Will scan ${allChannels.length} channels: ${allChannels.join(', ')}`);
 
-    for (const channelId of allChannels) {
+    for (let i = 0; i < allChannels.length; i++) {
+      const channelId = allChannels[i]!;
+      
       try {
         const channel = await client.channels.fetch(channelId) as TextChannel;
-        if (!channel) continue;
+        if (!channel) {
+          Logger.warn(`⚠️  Channel ${channelId} not found, skipping...`);
+          continue;
+        }
 
-        Logger.info(`Scanning channel ${channel.name} (${channelId}) for historical messages...`);
+        Logger.info(`🔍 [${i + 1}/${allChannels.length}] Scanning channel: ${channel.name} (${channelId})`);
         
         let lastMessageId: string | undefined;
         let messagesScanned = 0;
+        let totalMessages = 0;
+        let batchCount = 0;
+        const channelStartTime = Date.now();
 
         while (true) {
           const fetchOptions = { 
@@ -81,12 +91,20 @@ export class WordFrequencyAnalyzer {
           };
 
           const batch = await channel.messages.fetch(fetchOptions);
-          if (batch.size === 0) break;
+          if (batch.size === 0) {
+            Logger.info(`✅ No more messages in channel ${channel.name}`);
+            break;
+          }
+
+          batchCount++;
+          totalMessages += batch.size;
+          let hitCutoff = false;
 
           for (const message of batch.values()) {
             if (message.createdAt < cutoffDate) {
-              Logger.info(`Reached 200-day cutoff in channel ${channel.name}`);
-              return;
+              Logger.info(`📅 Reached 30-day cutoff in channel ${channel.name} (${new Date(message.createdAt).toISOString().split('T')[0]})`);
+              hitCutoff = true;
+              break; // Exit message loop, but continue to next channel
             }
 
             if (this.discussionHandler.isManagerMessage(message, config)) {
@@ -97,17 +115,30 @@ export class WordFrequencyAnalyzer {
             lastMessageId = message.id;
           }
 
-          // Rate limiting
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Progress logging every 5 batches (500 messages)
+          if (batchCount % 5 === 0) {
+            const elapsed = (Date.now() - channelStartTime) / 1000;
+            Logger.info(`📈 Channel ${channel.name}: processed ${totalMessages} messages, found ${messagesScanned} manager messages (${elapsed.toFixed(1)}s elapsed)`);
+          }
+
+          if (hitCutoff) break;
+
+          // Reduced rate limiting
+          await new Promise(resolve => setTimeout(resolve, 250));
         }
 
-        Logger.info(`Completed scanning channel ${channel.name}: ${messagesScanned} manager messages analyzed`);
+        const channelElapsed = (Date.now() - channelStartTime) / 1000;
+        Logger.info(`✅ Completed channel ${channel.name}: ${messagesScanned} manager messages analyzed from ${totalMessages} total messages (${channelElapsed.toFixed(1)}s)`);
+        
       } catch (error) {
-        Logger.error(`Error scanning channel ${channelId}:`, error);
+        Logger.error(`❌ Error scanning channel ${channelId}:`, error);
+        // Continue processing other channels
+        continue;
       }
     }
 
-    Logger.info(`Historical scan completed. Total messages processed: ${this.processedMessages}`);
+    Logger.info(`🎉 Historical scan completed! Total manager messages processed: ${this.processedMessages}`);
+    Logger.info(`📊 Dictionary contains ${this.hebrewWords.size} Hebrew words and ${this.englishWords.size} English words`);
     await this.generateAnalysisReport();
   }
 
@@ -206,7 +237,17 @@ export class WordFrequencyAnalyzer {
   }
 
   public async generateAnalysisReport(): Promise<void> {
-    if (!is_active) return;
+    if (!is_active) {
+      Logger.info('🚫 Word frequency analyzer inactive - skipping report generation');
+      return;
+    }
+
+    Logger.info('📊 Generating word frequency analysis report...');
+    
+    if (this.processedMessages === 0) {
+      Logger.warn('⚠️  No messages were processed - cannot generate meaningful report');
+      return;
+    }
 
     this.categorizeWords();
 
@@ -215,17 +256,21 @@ export class WordFrequencyAnalyzer {
 
     const report = this.buildReport(hebrewSorted, englishSorted);
     
-    const fileName = 'tradersMind_dict_analysis.txt';
-    fs.writeFileSync(fileName, report, 'utf8');
-    
-    Logger.info(`Word frequency analysis report generated: ${fileName}`);
-    Logger.info(`Analysis Summary:
+    try {
+      const fileName = 'tradersMind_dict_analysis.txt';
+      fs.writeFileSync(fileName, report, 'utf8');
+      
+      Logger.info(`✅ Word frequency analysis report generated: ${fileName}`);
+      Logger.info(`📈 Analysis Summary:
     - Total messages processed: ${this.processedMessages}
     - Hebrew words found: ${this.hebrewWords.size}
     - English words found: ${this.englishWords.size}
     - Strong words: ${this.strong_words.size}
     - Medium words: ${this.medium_words.size}
     - Weak words: ${this.weak_words.size}`);
+    } catch (error) {
+      Logger.error('❌ Failed to write analysis report:', error);
+    }
   }
 
   private buildReport(hebrewSorted: WordFrequency[], englishSorted: WordFrequency[]): string {
