@@ -110,6 +110,7 @@ export class WordFrequencyAnalyzer {
             if (this.discussionHandler.isManagerMessage(message, config)) {
               await this.analyzeMessageContent(message.content);
               messagesScanned++;
+              this.processedMessages++; // Fix: increment class property for report generation
             }
 
             lastMessageId = message.id;
@@ -139,6 +140,7 @@ export class WordFrequencyAnalyzer {
 
     Logger.info(`🎉 Historical scan completed! Total manager messages processed: ${this.processedMessages}`);
     Logger.info(`📊 Dictionary contains ${this.hebrewWords.size} Hebrew words and ${this.englishWords.size} English words`);
+    Logger.info(`🔍 Debug: processedMessages=${this.processedMessages}, totalWords=${this.hebrewWords.size + this.englishWords.size}`);
     await this.generateAnalysisReport();
   }
 
@@ -244,9 +246,14 @@ export class WordFrequencyAnalyzer {
 
     Logger.info('📊 Generating word frequency analysis report...');
     
-    if (this.processedMessages === 0) {
-      Logger.warn('⚠️  No messages were processed - cannot generate meaningful report');
+    const totalWords = this.hebrewWords.size + this.englishWords.size;
+    if (this.processedMessages === 0 && totalWords === 0) {
+      Logger.warn('⚠️  No messages or words were processed - cannot generate meaningful report');
       return;
+    }
+    
+    if (this.processedMessages === 0 && totalWords > 0) {
+      Logger.warn('⚠️  Message counter issue detected, but proceeding with word analysis (found ' + totalWords + ' words)');
     }
 
     this.categorizeWords();
