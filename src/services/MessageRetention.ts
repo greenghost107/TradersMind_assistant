@@ -156,8 +156,7 @@ export class MessageRetention {
       
       const messages = await channel.messages.fetch({ limit: 100 });
       const botMessages = messages.filter(msg => 
-        msg.author.id === this.client!.user?.id && 
-        msg.createdTimestamp < cutoffTime
+        msg.author.id === this.client!.user?.id
       );
 
       for (const message of botMessages.values()) {
