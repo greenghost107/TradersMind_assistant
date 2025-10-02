@@ -6,8 +6,12 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/bot.js",
+    "start:development": "NODE_ENV=development node dist/bot.js",
+    "start:production": "NODE_ENV=production node dist/bot.js",
     "start:prod": "NODE_ENV=production node dist/bot.js",
     "dev": "ts-node src/bot.ts",
+    "dev:development": "NODE_ENV=development ts-node src/bot.ts",
+    "dev:production": "NODE_ENV=production ts-node src/bot.ts",
     "dev:prod": "NODE_ENV=production ts-node src/bot.ts",
     "test": "jest",
     "test:playwright": "playwright test",

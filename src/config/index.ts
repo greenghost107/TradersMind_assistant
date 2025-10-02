@@ -1,7 +1,21 @@
 import { config } from 'dotenv';
 import { BotConfig } from '../types';
+import * as path from 'path';
+import * as fs from 'fs';
 
-config();
+// Load environment-specific .env file
+const nodeEnv = process.env.NODE_ENV || 'development';
+const envFile = `.env.${nodeEnv}`;
+const envPath = path.resolve(process.cwd(), envFile);
+
+// Check if environment-specific file exists, fallback to .env
+if (fs.existsSync(envPath)) {
+  config({ path: envPath });
+  console.log(`🔧 Loaded environment config from ${envFile}`);
+} else {
+  config(); // Load default .env
+  console.log(`🔧 Loaded environment config from .env (${envFile} not found)`);
+}
 
 export const ENV = {
   DISCORD_TOKEN: process.env.DISCORD_TOKEN || '',

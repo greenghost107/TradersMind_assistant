@@ -7,7 +7,6 @@ export class MessageRetention {
   private cleanupInterval: NodeJS.Timeout | null = null;
   private config: BotConfig | null = null;
   private client: Client | null = null;
-  private static readonly RETENTION_HOURS = 26;
   private static readonly CLEANUP_INTERVAL_HOURS = 1;
 
   public initialize(client: Client, config: BotConfig): void {
@@ -16,29 +15,7 @@ export class MessageRetention {
   }
 
   public addMessageForRetention(message: Message, groupId?: string): void {
-    const retentionMs = MessageRetention.RETENTION_HOURS * 60 * 60 * 1000; // hours to milliseconds
-    
-    const deleteAt = new Date(Date.now() + retentionMs);
-    
-    const job: RetentionJob = {
-      messageId: message.id,
-      channelId: message.channel.id,
-      createdAt: message.createdAt,
-      deleteAt,
-      ...(groupId && { groupId }),
-      ...(groupId && { isGrouped: true })
-    };
-
-    // Track grouped messages
-    if (groupId) {
-      if (!this.groupedJobs.has(groupId)) {
-        this.groupedJobs.set(groupId, []);
-      }
-      this.groupedJobs.get(groupId)!.push(message.id);
-    }
-
-    this.retentionJobs.set(message.id, job);
-    
+    // Retention functionality removed - messages are only cleaned up on Hebrew updates
   }
 
   public startCleanupScheduler(): void {
@@ -175,7 +152,7 @@ export class MessageRetention {
       const channel = this.client.channels.cache.get(channelId) as TextChannel;
       if (!channel) return;
 
-      const cutoffTime = Date.now() - (MessageRetention.RETENTION_HOURS * 60 * 60 * 1000);
+      // No time-based retention - messages only cleaned up on Hebrew updates
       
       const messages = await channel.messages.fetch({ limit: 100 });
       const botMessages = messages.filter(msg => 

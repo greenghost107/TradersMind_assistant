@@ -52,7 +52,8 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **♾️ Unlimited Symbol Parsing**: No 25-symbol limit - all top picks parsed before filtering
 - **🔍 Relevance Filtering**: Smart scoring (≥0.7 threshold) rejects ticker-only lists
 - **👻 Ephemeral Interactions**: Private button-based interface for viewing analysis  
-- **🧹 Message Retention**: Configurable automatic cleanup of bot messages
+- **🧹 Hebrew Update Triggered Cleanup**: Automatic immediate cleanup when Hebrew daily updates are posted
+- **🧹 Hebrew Update Triggered Cleanup**: Automatic immediate cleanup when Hebrew daily updates are posted
 - **🔗 Direct Message Links**: Provides clickable URLs to Discord analysis messages
 - **🔍 Permission Diagnostics**: Comprehensive startup and runtime permission monitoring
 - **⚙️ Environment-Based Configuration**: Simple setup using environment variables
@@ -84,6 +85,10 @@ To configure the bot, you need to get the Channel IDs for your Discord channels:
 - **Short Analysis Channel**: Where your short position analysis content is posted  
 - **Manager General Messages Channel**: Where the bot will monitor for top picks and stock symbols
 
+**Manager User ID:**
+- Right-click on the manager's Discord profile → "Copy User ID"
+- Only messages from this user will be processed for analysis and trigger cleanup
+
 ### 3. Environment Configuration
 ```bash
 cp .env.example .env
@@ -98,6 +103,9 @@ DISCORD_TOKEN=your_discord_bot_token_here
 LONG_ANALYSIS_CHANNEL=123456789012345678
 SHORT_ANALYSIS_CHANNEL=987654321098765432
 MANAGER_GENERAL_MESSAGES_CHANNEL=456789123456789123
+
+# Manager Configuration (only messages from this user ID are processed)
+MANAGER_ID=your_manager_user_id_here
 
 ```
 
@@ -128,6 +136,12 @@ npm run dev
 3. View the latest analysis privately (only you can see it)
 4. Click the embedded link to jump to the full analysis message
 
+### For Managers (Message Cleanup)
+1. Post Hebrew daily update messages in the general channel
+2. Bot automatically detects Hebrew update patterns and immediately cleans up all previous bot messages
+3. Only configured manager (MANAGER_ID) can trigger this immediate cleanup
+4. Bot messages are cleaned up immediately when Hebrew daily updates are detected
+
 ### Commands
 - `/status` - View bot configuration and monitoring status
 
@@ -139,7 +153,8 @@ npm run dev
 - **TopPicksParser**: Extracts symbols from "טופ פיקס" / "top picks" sections with priority
 - **AnalysisLinker**: Indexes and links analysis messages to symbols with Hebrew keyword support
 - **EphemeralHandler**: Manages button interactions and ephemeral responses (splits >20 buttons)
-- **MessageRetention**: Handles automatic message cleanup
+- **MessageRetention**: Handles immediate Hebrew update triggered cleanup
+- **HebrewUpdateDetector**: Detects Hebrew daily update patterns to trigger immediate message cleanup
 
 ### Message Flow
 1. **Analysis Channels** → AnalysisLinker indexes messages (relevance ≥0.7, Hebrew/English keywords)
@@ -151,7 +166,8 @@ npm run dev
 ### Key Features
 - **Environment-Based Configuration**: No complex setup commands needed
 - **Ephemeral Interactions**: Private responses visible only to requesting user
-- **Multi-tiered Cleanup**: Automatic message and cache cleanup with safety buffers
+- **Hebrew Update Triggered Cleanup**: Immediate deletion of all bot messages when Hebrew daily updates are detected
+- **Hebrew Update Triggered Cleanup**: Bot messages automatically cleaned up when Hebrew daily updates are detected
 - **Smart Symbol Detection**: Pattern matching with confidence scoring and word filtering
 - **Hebrew Keyword Matching**: 40+ Hebrew technical terms (strong/medium/weak scoring)
 - **Reply Message Boost**: +0.2 relevance score for follow-up analysis
@@ -377,6 +393,7 @@ In the Render dashboard, go to the "Environment" tab and add these variables:
 | `LONG_ANALYSIS_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
 | `SHORT_ANALYSIS_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
 | `MANAGER_GENERAL_MESSAGES_CHANNEL` | Channel ID | Discord → Right-click channel → Copy ID |
+| `MANAGER_ID` | User ID | Discord → Right-click manager profile → Copy User ID |
 
 **How to get Discord Channel IDs:**
 1. In Discord: User Settings → Advanced → Enable "Developer Mode"
