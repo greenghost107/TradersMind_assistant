@@ -6,7 +6,7 @@ import { Logger } from '../utils/Logger';
 import * as fs from 'fs';
 
 // Control flag - set to true to activate analysis
-const is_active: boolean = false;
+const is_active: boolean = true;
 
 interface WordFrequency {
   word: string;
