@@ -1,7 +1,7 @@
 import { Message, TextChannel, Collection, Client } from 'discord.js';
 import { BotConfig } from '../types';
 import { DiscussionChannelHandler } from './DiscussionChannelHandler';
-import { COMMON_WORDS } from '../config';
+import { COMMON_WORDS, HEBREW_STOPWORDS } from '../config';
 import { Logger } from '../utils/Logger';
 import * as fs from 'fs';
 
@@ -172,9 +172,13 @@ export class WordFrequencyAnalyzer {
 
   private shouldFilterWord(word: string): boolean {
     const upperWord = word.toUpperCase();
+    const lowerWord = word.toLowerCase();
     
-    // Filter common words
+    // Filter common English words
     if (COMMON_WORDS.has(upperWord)) return true;
+    
+    // Filter Hebrew stopwords
+    if (HEBREW_STOPWORDS.has(lowerWord)) return true;
     
     // Filter known abbreviations and technical terms
     const technicalTerms = new Set([

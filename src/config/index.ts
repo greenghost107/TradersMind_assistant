@@ -61,7 +61,24 @@ export const COMMON_WORDS = new Set([
   'THE', 'THIS', 'THAT', 'WHAT', 'WHEN', 'WHERE', 'WHICH', 'WHILE', 'WITH', 'WILL', 'WELL',
   'VERY', 'THAN', 'THEY', 'THEM', 'THEN', 'THERE', 'THESE', 'THOSE', 'WANT', 'WORK', 'YEAR',
   'OVER', 'INTO', 'FROM', 'BEEN', 'HAVE', 'ONLY', 'SOME', 'TIME', 'BACK', 'AFTER', 'FIRST',
-  'QUICK', 'BROWN', 'FOX', 'JUMPS', 'DIAMOND', 'HANDS'
+  'QUICK', 'BROWN', 'FOX', 'JUMPS', 'DIAMOND', 'HANDS',
+  // Discord platform noise
+  'HTTPS', 'COM', 'DISCORD', 'CHANNELS', 'EVERYONE',
+  // Common English trading noise
+  'EARNING', 'GAP', 'WATCH', 'LEADERS', 'FOLLOW', 'ADVANCE', 'PRO', 'INVESTING', 'STRENGTH',
+  'ACTION', 'BOUNCE', 'PLAN', 'STATUS', 'SECTOR', 'PLAY', 'STOCK', 'YOUR', 'AGAINST'
+]);
+
+// Hebrew stopwords - high-frequency generic words with little trading value
+export const HEBREW_STOPWORDS = new Set([
+  'של', 'על', 'עם', 'מה', 'לא', 'את', 'זה', 'כל', 'היום', 'עוד', 'חדש', 'מקום',
+  'הזה', 'שלה', 'חלק', 'יש', 'אני', 'פה', 'רק', 'אתמול', 'לאחר', 'חדשים', 
+  'שלא', 'האחרון', 'לב', 'לעבר', 'לשבוע', 'חודשים', 'מניות', 'שלוש', 'שנים',
+  'תמיד', 'יותר', 'יכול', 'יכולה', 'יכולות', 'כאן', 'כבר', 'כדי', 'ככה', 'כמה',
+  'כמו', 'כרגע', 'להיות', 'ללא', 'לנו', 'לפני', 'לראות', 'לשכוח', 'לתת',
+  'מאוד', 'מאז', 'משהו', 'נהדר', 'נוסף', 'סוחרים', 'עבודה', 'עד', 'עליו',
+  'פני', 'ראשון', 'רביעי', 'שבו', 'שבועות', 'שהוא', 'שהיא', 'שום', 'שזה',
+  'שימו', 'שלום', 'שם', 'שני', 'תוך'
 ]);
 
 export const SYMBOL_PATTERN = /\b([A-Z]{1,5})\b/g;
@@ -88,7 +105,18 @@ export const HEBREW_KEYWORDS = {
     'falling wedge',
     'ליברמור',
     'ATH',
-    '✅'
+    '✅',
+    // Discovered high-value trading terms
+    'ווינרס',
+    'קנדל',
+    'אינסייד',
+    'רייד',
+    'סקייס',
+    'באונס',
+    'והמשכיות',
+    'הפריצה',
+    'לבלו',
+    'הממוצע'
   ],
   medium: [
     'עולה',
@@ -104,7 +132,31 @@ export const HEBREW_KEYWORDS = {
     'רייד ווינרס',
     'IBD50',
     'Sector Leaders',
-    'פוקוס'
+    'פוקוס',
+    // Additional discovered medium-value terms
+    'קונסולידציה',
+    'פולבק',
+    'נראה',
+    'נראו',
+    'מזכיר',
+    'מחיר',
+    'ממשיכה',
+    'מניה',
+    'מעלה',
+    'מעניין',
+    'מקו',
+    'נסחרת',
+    'נר',
+    'נשבר',
+    'נשמר',
+    'סגירה',
+    'סטייג',
+    'פורצת',
+    'פותחת',
+    'פיבוט',
+    'קו',
+    'ריטסט',
+    'תנועה'
   ],
   weak: [
     'מניה',
