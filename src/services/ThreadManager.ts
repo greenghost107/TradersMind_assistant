@@ -6,7 +6,7 @@ export class ThreadManager {
   private cacheExpiry: Map<string, number> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000;
   private readonly analysisChannels: string[];
-
+  private readonly DAYS_TO_SCRAPE = 7;
   constructor(analysisChannels: string[]) {
     this.analysisChannels = analysisChannels;
   }
@@ -127,7 +127,7 @@ export class ThreadManager {
       // Get archived threads if requested
       if (includeArchived) {
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - 7);
+        cutoffDate.setDate(cutoffDate.getDate() - this.DAYS_TO_SCRAPE);
 
         const archivedThreads = await channel.threads.fetchArchived({ type: 'public', limit: 50 });
         for (const thread of archivedThreads.threads.values()) {
@@ -234,7 +234,7 @@ export class ThreadManager {
       // Fetch archived threads if requested (for historical scraping)
       if (includeArchived) {
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - 7); // Last 7 days
+        cutoffDate.setDate(cutoffDate.getDate() - this.DAYS_TO_SCRAPE); // Last DAYS_TO_SCRAPE days
         
         const archivedThreads = await channel.threads.fetchArchived({
           type: 'public',
