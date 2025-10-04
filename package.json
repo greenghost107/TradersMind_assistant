@@ -15,6 +15,7 @@
     "dev:prod": "npx cross-env NODE_ENV=production ts-node src/bot.ts",
     "test": "jest",
     "test:playwright": "playwright test",
+    "test:shutdown": "playwright test bot-shutdown-cleanup.spec.ts",
     "test:all": "npm run test && npm run test:playwright",
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit",

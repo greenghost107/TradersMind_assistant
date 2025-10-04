@@ -6,7 +6,7 @@ export class ThreadManager {
   private cacheExpiry: Map<string, number> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000;
   private readonly analysisChannels: string[];
-  private readonly DAYS_TO_SCRAPE = 7;
+  private readonly DAYS_TO_SCRAPE = 20;
   constructor(analysisChannels: string[]) {
     this.analysisChannels = analysisChannels;
   }

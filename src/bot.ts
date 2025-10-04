@@ -67,7 +67,17 @@ class TradersMindBot {
       this.analysisLinker
     );
 
+    // Register signal handlers IMMEDIATELY in constructor
+    this.registerSignalHandlers();
     this.setupEventHandlers();
+    
+    // Debug process.exit calls
+    const originalExit = process.exit;
+    process.exit = ((code?: number) => {
+      console.log('🔍 DEBUG: process.exit called with code:', code);
+      console.trace('Exit called from:');
+      return originalExit.call(process, code);
+    }) as any;
   }
 
   private setupEventHandlers(): void {
@@ -179,15 +189,73 @@ class TradersMindBot {
       }
     });
 
+
+  }
+
+  private registerSignalHandlers(): void {
+    // Register SIGINT handler
     process.on('SIGINT', () => {
+      console.log('🔍 DEBUG: SIGINT received - starting immediate cleanup');
       Logger.info('Shutting down bot...');
-      this.shutdown();
+      
+      // Use setImmediate to ensure cleanup runs in next tick
+      setImmediate(async () => {
+        try {
+          await this.shutdown();
+        } catch (error) {
+          console.log('❌ ERROR: SIGINT shutdown error:', error);
+          process.exit(1);
+        }
+      });
     });
 
+    // Register SIGTERM handler
     process.on('SIGTERM', () => {
+      console.log('🔍 DEBUG: SIGTERM received - starting immediate cleanup');
       Logger.info('Shutting down bot...');
-      this.shutdown();
+      
+      // Use setImmediate to ensure cleanup runs in next tick
+      setImmediate(async () => {
+        try {
+          await this.shutdown();
+        } catch (error) {
+          console.log('❌ ERROR: SIGTERM shutdown error:', error);
+          process.exit(1);
+        }
+      });
     });
+
+    // Add essential fallback handlers
+    process.on('uncaughtException', (error) => {
+      console.log('❌ Uncaught exception:', error.message);
+      this.shutdown().catch(() => process.exit(1));
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.log('❌ Unhandled rejection:', reason);
+    });
+
+    // Add stdin monitoring as primary Ctrl+C detection (this was working!)
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', (key) => {
+        // Ctrl+C is '\u0003'
+        if (key.toString() === '\u0003') {
+          console.log('🔍 DEBUG: Ctrl+C detected via stdin monitoring!');
+          this.shutdown().catch(() => process.exit(1));
+        }
+      });
+    }
+
+    // Verify signal handlers are registered
+    const sigintHandlers = process.listenerCount('SIGINT');
+    if (sigintHandlers === 0) {
+      console.log('❌ ERROR: No SIGINT handlers registered!');
+    } else {
+      console.log(`✅ SUCCESS: ${sigintHandlers} SIGINT handler(s) registered`);
+    }
   }
 
   private async initializeBot(): Promise<void> {
@@ -324,41 +392,79 @@ class TradersMindBot {
     });
   }
 
+  private shutdownInProgress = false;
+
   private async shutdown(): Promise<void> {
-    Logger.info('Initiating graceful shutdown...');
+    if (this.shutdownInProgress) {
+      return;
+    }
+    this.shutdownInProgress = true;
+
+    const timestamp = () => `[${new Date().toISOString()}]`;
+    console.log(`ℹ️ INFO: ${timestamp()} Initiating graceful shutdown...`);
     
     try {
-      Logger.info('Stopping HTTP server...');
-      if (this.httpServer) {
-        this.httpServer.close();
-        this.httpServer = null;
+      // PRIORITY 1: Message cleanup FIRST (most important)
+      try {
+        const cleanupPromise = Promise.all([
+          this.messageRetention.performFinalCleanup(),
+          Promise.resolve(this.ephemeralHandler.performFinalCleanup())
+        ]);
+
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Cleanup timeout after 8 seconds')), 8000);
+        });
+
+        await Promise.race([cleanupPromise, timeoutPromise]);
+        console.log(`✅ SUCCESS: ${timestamp()} Message cleanup completed`);
+      } catch (error) {
+        console.log(`❌ ERROR: ${timestamp()} Message cleanup failed:`, error);
+      }
+
+      // PRIORITY 2: Stop schedulers  
+      console.log(`ℹ️ INFO: ${timestamp()} Stopping background schedulers...`);
+      try {
+        this.messageRetention.stopCleanupScheduler();
+        console.log(`✅ SUCCESS: ${timestamp()} Schedulers stopped`);
+      } catch (error) {
+        console.log(`❌ ERROR: ${timestamp()} Scheduler stop failed:`, error);
       }
       
-      Logger.info('Stopping background schedulers...');
-      this.messageRetention.stopCleanupScheduler();
+      // PRIORITY 3: HTTP server
+      console.log(`ℹ️ INFO: ${timestamp()} Stopping HTTP server...`);
+      try {
+        if (this.httpServer) {
+          this.httpServer.close();
+          this.httpServer = null;
+        }
+        console.log(`✅ SUCCESS: ${timestamp()} HTTP server stopped`);
+      } catch (error) {
+        console.log(`❌ ERROR: ${timestamp()} HTTP server stop failed:`, error);
+      }
+
+      // PRIORITY 4: Ephemeral cleanup (already handled in message cleanup step above)
+      // Removed duplicate ephemeral cleanup - it's already called in performFinalCleanup()
       
-      Logger.info('Performing final cleanup...');
-      const cleanupPromise = Promise.all([
-        this.messageRetention.performFinalCleanup(),
-        Promise.resolve(this.ephemeralHandler.performFinalCleanup())
-      ]);
-      
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Cleanup timeout')), 5000);
-      });
-      
-      await Promise.race([cleanupPromise, timeoutPromise]);
-      
-      Logger.info('Graceful shutdown complete');
+      console.log(`ℹ️ INFO: ${timestamp()} Graceful shutdown steps complete`);
       
     } catch (error) {
-      Logger.error('Error during graceful shutdown:', error);
-      Logger.info('Proceeding with forced shutdown...');
+      console.log(`❌ ERROR: ${timestamp()} Error during graceful shutdown:`, error);
     }
     
-    await this.client.destroy();
-    Logger.info('Bot shutdown complete');
-    process.exit(0);
+    console.log(`ℹ️ INFO: ${timestamp()} Destroying Discord client...`);
+    try {
+      await this.client.destroy();
+      console.log(`✅ SUCCESS: ${timestamp()} Discord client destroyed`);
+    } catch (error) {
+      console.log(`❌ ERROR: ${timestamp()} Client destroy failed:`, error);
+    }
+    
+    console.log(`🎯 SHUTDOWN COMPLETE: Bot has been fully stopped and cleaned up`);
+    
+    // Add small delay to ensure all console output is flushed
+    setTimeout(() => {
+      process.exit(0);
+    }, 100);
   }
 
   public async start(): Promise<void> {
