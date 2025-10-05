@@ -161,6 +161,11 @@ export class PermissionDiagnostic {
   ): Promise<ChannelPermissionAnalysis[]> {
     const analyses: ChannelPermissionAnalysis[] = [];
     const allChannelIds = [...config.analysisChannels, ...config.discussionChannels, config.generalNoticesChannel];
+    
+    // Add deals channel if configured
+    if (config.dealsChannel) {
+      allChannelIds.push(config.dealsChannel);
+    }
 
     for (const channelId of allChannelIds) {
       try {
@@ -194,13 +199,16 @@ export class PermissionDiagnostic {
     const isAnalysisChannel = config.analysisChannels.includes(channel.id);
     const isDiscussionChannel = config.discussionChannels.includes(channel.id);
     const isGeneralChannel = config.generalNoticesChannel === channel.id;
+    const isDealsChannel = config.dealsChannel === channel.id;
     
     // Choose appropriate permission requirements based on channel type
     const channelPermissions = isAnalysisChannel 
       ? this.REQUIRED_ANALYSIS_CHANNEL_PERMISSIONS
       : isDiscussionChannel
         ? this.REQUIRED_DISCUSSION_CHANNEL_PERMISSIONS
-        : this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS;
+        : isDealsChannel
+          ? this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS // Deals channel needs same permissions as general (send messages, buttons)
+          : this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS;
 
     for (const permission of channelPermissions) {
       const hasPermission = permissions?.has(PermissionsBitField.Flags[permission]) ?? false;
@@ -226,18 +234,18 @@ export class PermissionDiagnostic {
     }
     
     // Check SendMessages for channels where bot needs to send messages
-    if ((isGeneralChannel || isDiscussionChannel) && !permissions?.has(PermissionsBitField.Flags.SendMessages)) {
+    if ((isGeneralChannel || isDiscussionChannel || isDealsChannel) && !permissions?.has(PermissionsBitField.Flags.SendMessages)) {
       blockingFactors.push('Cannot send messages');
     }
     
-    if (isGeneralChannel && !permissions?.has(PermissionsBitField.Flags.UseExternalEmojis)) {
+    if ((isGeneralChannel || isDealsChannel) && !permissions?.has(PermissionsBitField.Flags.UseExternalEmojis)) {
       blockingFactors.push('Cannot use external emojis for buttons');
     }
 
     return {
       channelId: channel.id,
       channelName: channel.name,
-      channelType: isAnalysisChannel ? 'analysis' : isDiscussionChannel ? 'discussion' : isGeneralChannel ? 'general' : 'unknown',
+      channelType: isAnalysisChannel ? 'analysis' : isDiscussionChannel ? 'discussion' : isGeneralChannel ? 'general' : isDealsChannel ? 'deals' : 'unknown',
       hasAccess: permissions?.has(PermissionsBitField.Flags.ViewChannel) ?? false,
       requiredPermissions,
       permissionTrace,
