@@ -131,7 +131,7 @@ More symbols: GOOGL META NFLX
     // Top short picks should appear next
     const shortPickIndex = symbols.findIndex(s => s.symbol === 'SPY');
     expect(shortPickIndex).toBeGreaterThanOrEqual(3);
-    expect(symbols[shortPickIndex].priority).toBe('top_short');
+    expect(symbols[shortPickIndex]!.priority).toBe('top_short');
   });
 
   test('should handle message with more than 25 symbols, prioritizing top picks', () => {
@@ -274,11 +274,11 @@ High confidence regular symbol: $NVDA
     
     // detectSymbolsFromTopPicks only returns top picks
     // top_long comes first, then top_short
-    expect(symbols[0].priority).toBe('top_long');
-    expect(symbols[0].symbol).toBe('PLTR');
+    expect(symbols[0]!.priority).toBe('top_long');
+    expect(symbols[0]!.symbol).toBe('PLTR');
     
-    expect(symbols[1].priority).toBe('top_short');
-    expect(symbols[1].symbol).toBe('SPY');
+    expect(symbols[1]!.priority).toBe('top_short');
+    expect(symbols[1]!.symbol).toBe('SPY');
     
     // Regular symbols are not returned by detectSymbolsFromTopPicks
     expect(symbols).toHaveLength(2);

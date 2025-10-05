@@ -172,6 +172,7 @@ TSLA , NVDA , MSFT , AAPL , GOOGL
       generalNoticesChannel: mockChannelId,
       analysisChannels: ['analysis-channel-1', 'analysis-channel-2'],
       discussionChannels: ['discussion-channel-1'],
+      guildId: 'mock-guild-id',
       managerId: 'mock-manager-id'
     };
 

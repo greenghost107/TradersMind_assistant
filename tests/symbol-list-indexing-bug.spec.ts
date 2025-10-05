@@ -85,7 +85,7 @@ test.describe('Symbol List Indexing Bug Fix', () => {
     
     const analysis = await analysisLinker.getLatestAnalysis('AAPL', 1);
     expect(analysis).toHaveLength(1);
-    expect(analysis[0].relevanceScore).toBeGreaterThanOrEqual(0.7);
+    expect(analysis[0]!.relevanceScore).toBeGreaterThanOrEqual(0.7);
   });
 
   test('should accept legitimate multi-symbol analysis with proper content', async () => {

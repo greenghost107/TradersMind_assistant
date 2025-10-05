@@ -13,16 +13,16 @@ test.describe('Symbol Detection', () => {
 
   test('should detect stock symbols in first line of message', () => {
     const message = 'AAPL is showing strong bullish signals\nThis is additional analysis content\nWith more details...';
-    const symbols = symbolDetector.detectSymbols(message.split('\n')[0]);
+    const symbols = symbolDetector.detectSymbols(message.split('\n')[0]!);
     
     expect(symbols).toHaveLength(1);
-    expect(symbols[0].symbol).toBe('AAPL');
-    expect(symbols[0].confidence).toBeGreaterThan(0.5);
+    expect(symbols[0]!.symbol).toBe('AAPL');
+    expect(symbols[0]!.confidence).toBeGreaterThan(0.5);
   });
 
   test('should detect multiple symbols in first line', () => {
     const message = 'AAPL TSLA MSFT are all showing positive momentum\nDetailed analysis follows...';
-    const symbols = symbolDetector.detectSymbols(message.split('\n')[0]);
+    const symbols = symbolDetector.detectSymbols(message.split('\n')[0]!);
     
     expect(symbols.length).toBeGreaterThanOrEqual(3);
     expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['AAPL', 'TSLA', 'MSFT']));
@@ -33,7 +33,7 @@ test.describe('Symbol Detection', () => {
     const symbols = symbolDetector.detectSymbols(message);
     
     expect(symbols).toHaveLength(1);
-    expect(symbols[0].symbol).toBe('AAPL');
+    expect(symbols[0]!.symbol).toBe('AAPL');
   });
 
   test('should boost confidence for $ prefix', () => {
@@ -45,7 +45,7 @@ test.describe('Symbol Detection', () => {
     
     expect(symbols1).toHaveLength(1);
     expect(symbols2).toHaveLength(1);
-    expect(symbols2[0].confidence).toBeGreaterThan(symbols1[0].confidence);
+    expect(symbols2[0]!.confidence).toBeGreaterThan(symbols1[0]!.confidence);
   });
 
   test('should validate symbol length and format', () => {
@@ -63,8 +63,8 @@ test.describe('Symbol Detection', () => {
     const symbols = symbolDetector.detectSymbols(message);
     
     expect(symbols).toHaveLength(1);
-    expect(symbols[0].symbol).toBe('DOCS');
-    expect(symbols[0].confidence).toBeGreaterThan(0.5); // Should have $ prefix boost
+    expect(symbols[0]!.symbol).toBe('DOCS');
+    expect(symbols[0]!.confidence).toBeGreaterThan(0.5); // Should have $ prefix boost
   });
 
   test('should detect symbols mixed with emojis and other characters', () => {
@@ -240,11 +240,11 @@ test.describe('Analysis Linking', () => {
     // Verify getLatestAnalysis also works
     const appleAnalyses = await analysisLinker.getLatestAnalysis('AAPL');
     expect(appleAnalyses).toHaveLength(1);
-    expect(appleAnalyses[0].content).toBe('AAPL\nHistorical Apple analysis');
+    expect(appleAnalyses[0]!.content).toBe('AAPL\nHistorical Apple analysis');
     
     const teslaAnalyses = await analysisLinker.getLatestAnalysis('TSLA');
     expect(teslaAnalyses).toHaveLength(1);
-    expect(teslaAnalyses[0].content).toBe('TSLA 🚗\nHistorical Tesla analysis with emoji');
+    expect(teslaAnalyses[0]!.content).toBe('TSLA 🚗\nHistorical Tesla analysis with emoji');
   });
 
   test('should clear existing data when initializing from historical data', async () => {

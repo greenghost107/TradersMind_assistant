@@ -24,6 +24,7 @@ export const ENV = {
   LONG_DISCUSSION_CHANNEL: process.env.LONG_DISCUSSION_CHANNEL || '',
   SHORT_DISCUSSION_CHANNEL: process.env.SHORT_DISCUSSION_CHANNEL || '',
   MANAGER_GENERAL_MESSAGES_CHANNEL: process.env.MANAGER_GENERAL_MESSAGES_CHANNEL || '',
+  DEALS_DISCUSSION_CHANNEL: process.env.DEALS_DISCUSSION_CHANNEL || '',
   MANAGER_ID: process.env.MANAGER_ID || '',
   NODE_ENV: process.env.NODE_ENV || 'development'
 };
@@ -47,6 +48,10 @@ export const getBotConfig = (): BotConfig | null => {
   
   if (ENV.MANAGER_ID) {
     config.managerId = ENV.MANAGER_ID;
+  }
+  
+  if (ENV.DEALS_DISCUSSION_CHANNEL) {
+    config.dealsChannel = ENV.DEALS_DISCUSSION_CHANNEL;
   }
   
   return config;

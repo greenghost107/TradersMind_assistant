@@ -132,7 +132,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.editReply({ 
       content: `✅ Created deals buttons for ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}` 
     });
-
+    // Delete the reply after 5 seconds
+  setTimeout(async () => {
+    try {
+      await interaction.deleteReply();
+    } catch (error) {
+      // Ignore errors if reply was already deleted
+    }
+  }, 5000);
     Logger.info(`✅ Created deals buttons for ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}`);
 
   } catch (error) {
