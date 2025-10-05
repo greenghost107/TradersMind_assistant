@@ -199,14 +199,39 @@ function parseDealsSymbols(content: string): StockSymbol[] {
   // Remove duplicates
   const uniqueSymbols = [...new Set(potentialSymbols)];
 
+  Logger.debug(`Found potential symbols: ${uniqueSymbols.join(', ')}`);
+
+  // Use context-aware validation for deals
+  const symbolDetector = new SymbolDetector();
+  const validSymbols: string[] = [];
+  const rejectedSingleLetters: string[] = [];
+
+  // First pass: validate symbols with standard rules
+  for (const symbol of uniqueSymbols) {
+    if (symbolDetector.isValidSymbolWithContext(symbol, uniqueSymbols)) {
+      validSymbols.push(symbol);
+    } else if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
+      rejectedSingleLetters.push(symbol);
+    }
+  }
+
+  // Second pass: context trust for single letters in deals lists
+  if (validSymbols.length >= 1) {
+    Logger.debug(`Context trust enabled for deals: ${validSymbols.length} valid symbols found`);
+    for (const singleLetter of rejectedSingleLetters) {
+      validSymbols.push(singleLetter);
+      Logger.debug(`Added single letter "${singleLetter}" via deals context trust`);
+    }
+  }
+
   // Convert to StockSymbol objects with high confidence for deals
-  const symbols: StockSymbol[] = uniqueSymbols.map((symbol, index) => ({
+  const symbols: StockSymbol[] = validSymbols.map((symbol, index) => ({
     symbol,
     confidence: 1.0, // High confidence for manually specified deals
     position: index,
     priority: 'regular' as const
   }));
 
-  Logger.debug(`Parsed ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}`);
+  Logger.debug(`Final parsed deals symbols: ${symbols.map(s => s.symbol).join(', ')}`);
   return symbols;
 }

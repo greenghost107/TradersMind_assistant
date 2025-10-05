@@ -58,6 +58,7 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **📊 First-Line Symbol Extraction**: Only symbols in the first line of analysis messages are indexed
 - **🔗 Latest Analysis Tracking**: Maintains a map of the most recent analysis URL per symbol
 - **🤖 Smart Symbol Detection**: Uses regex patterns with word filtering, supports emojis
+- **🔤 Single Letter Stock Symbol Handling**: Advanced context-aware detection for single-letter symbols (F, C, X, etc.)
 - **🌍 Hebrew & English Support**: Full Hebrew keyword matching for technical analysis (ברייקאאוט, פריצה, ATH, etc.)
 - **💬 Reply Message Indexing**: Reply messages get +0.2 relevance boost and are indexed independently
 - **🎯 Top Picks Parser**: Automatically extracts and prioritizes symbols from "טופ פיקס" / "top picks" sections
@@ -70,6 +71,38 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **🔍 Permission Diagnostics**: Comprehensive startup and runtime permission monitoring
 - **⚙️ Environment-Based Configuration**: Simple setup using environment variables
 - **☁️ Deployment Ready**: No database needed, works on any free tier platform
+
+## Single Letter Stock Symbol Handling
+
+The bot uses a sophisticated three-pass approach to safely detect single-letter stock symbols (like F, C, X) while avoiding false positives from text analysis.
+
+### Detection Strategy
+
+1. **Strong Pattern Detection**: `$F`, `#F` - always detected if validated in recent analysis history
+2. **List Context Trust**: `MSFT, F, AAPL` - F is trusted when appearing with valid multi-letter symbols  
+3. **Explicit Context**: Top picks lists, deals lists - single letters automatically trusted
+
+### Detection Rules
+
+✅ **Detected Examples:**
+- `$F target 15` - Strong prefix indicator
+- `MSFT/F/C 👀` - List context with valid symbols
+- `📈 long: AAPL, MSFT, F` - Top picks context
+- `פורד מוטורס $F✅` - Hebrew analysis with $ prefix
+
+❌ **Rejected Examples:**
+- `Federal Reserve` - F embedded in word  
+- `F analysis` - Single letter without strong context (unless recent `$F` pattern exists in history)
+- `אני חושב שFederal` - F embedded in Hebrew text
+
+### Implementation Details
+
+- **Context Trust**: Single letters are accepted when 2+ valid multi-letter symbols appear in the same message
+- **Historical Validation**: For `$F` or `#F` patterns, the bot searches recent analysis/discussion channels to confirm validity
+- **Noise Prevention**: Rejects single letters found within words or without sufficient context
+- **Cross-Channel Support**: Works across analysis channels, discussion channels, top picks, and deals
+
+This approach ensures symbols like Ford (`F`) and Citigroup (`C`) are properly detected and indexed while preventing false positives from everyday text.
 
 ## Setup
 

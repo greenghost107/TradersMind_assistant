@@ -273,6 +273,10 @@ class TradersMindBot {
     try {
       Logger.info('Initializing bot with historical data...');
       
+      // Reinitialize services with client for enhanced symbol detection
+      this.symbolDetector = new SymbolDetector(this.client, this.config!.analysisChannels, this.config!.discussionChannels);
+      this.historicalScraper = new HistoricalScraper(this.config!, this.client);
+      
       const historicalData = await this.historicalScraper.scrapeHistoricalAnalysis(
         this.client,
         this.config!

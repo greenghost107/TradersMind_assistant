@@ -16,9 +16,9 @@ export class HistoricalScraper {
   private config: BotConfig;
   private readonly REQUEST_DELAY_MS = 100;
 
-  constructor(config: BotConfig) {
+  constructor(config: BotConfig, client?: Client) {
     this.config = config;
-    this.symbolDetector = new SymbolDetector();
+    this.symbolDetector = new SymbolDetector(client, config.analysisChannels, config.discussionChannels);
     this.urlExtractor = new UrlExtractor();
     this.threadManager = new ThreadManager(config.analysisChannels);
     this.discussionChannelHandler = new DiscussionChannelHandler();

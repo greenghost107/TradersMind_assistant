@@ -74,24 +74,42 @@ export class TopPicksParser {
       return [];
     }
 
-    // Extract valid stock symbols (1-5 uppercase letters)
+    // Extract all potential symbols (1-5 uppercase letters)
     const symbolPattern = /\b([A-Z]{1,5})\b/g;
-    const symbols: string[] = [];
+    const allSymbols: string[] = [];
+    const validSymbols: string[] = [];
+    const rejectedSingleLetters: string[] = [];
     let match;
 
+    // First pass: collect all symbols and classify them
     while ((match = symbolPattern.exec(cleaned)) !== null) {
       const symbol = match[1]!;
-      const isValid = this.isValidStockSymbol(symbol);
-      Logger.debug(`Found potential symbol: "${symbol}", valid: ${isValid}`);
-      if (isValid) {
-        symbols.push(symbol);
+      allSymbols.push(symbol);
+      
+      if (this.isValidStockSymbol(symbol)) {
+        validSymbols.push(symbol);
+        Logger.debug(`Found valid symbol: "${symbol}"`);
+      } else if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
+        rejectedSingleLetters.push(symbol);
+        Logger.debug(`Found rejected single letter: "${symbol}"`);
       }
     }
 
-    const result = [...new Set(symbols)];
+    // Second pass: context-aware recovery for single letters in top picks  
+    // In top picks context, even 1 valid symbol can provide context for single letters
+    if (validSymbols.length >= 1) {
+      Logger.debug(`Context trust enabled for top picks: ${validSymbols.length} valid symbols found`);
+      for (const singleLetter of rejectedSingleLetters) {
+        if (this.isValidStockSymbolWithContext(singleLetter, allSymbols)) {
+          validSymbols.push(singleLetter);
+          Logger.debug(`Added single letter "${singleLetter}" via context trust in top picks`);
+        }
+      }
+    }
+
+    const result = [...new Set(validSymbols)];
     Logger.debug(`Final extracted symbols: [${result.join(', ')}]`);
     
-    // Remove duplicates while preserving order
     return result;
   }
 
@@ -121,15 +139,38 @@ export class TopPicksParser {
       return false;
     }
 
-    // Single letter symbols only for specific cases
+    // Single letter symbols only for specific cases (or will be handled by context)
     const allowedSingleLetters = ['A', 'I'];
     if (symbol.length === 1 && !allowedSingleLetters.includes(symbol)) {
-      Logger.debug(`Symbol "${symbol}" rejected: single letter not allowed`);
+      Logger.debug(`Symbol "${symbol}" rejected: single letter not allowed (may be recovered by context)`);
       return false;
     }
 
     Logger.debug(`Symbol "${symbol}" accepted as valid`);
     return true;
+  }
+
+  private isValidStockSymbolWithContext(symbol: string, allSymbols: string[]): boolean {
+    // For multi-letter symbols, use standard validation
+    if (symbol.length > 1) {
+      return this.isValidStockSymbol(symbol);
+    }
+
+    // For single letters, allow if there are valid symbols in the same context
+    // In top picks, even 1 valid symbol can provide context
+    if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
+      const validContextSymbols = allSymbols.filter(s => 
+        s !== symbol && this.isValidStockSymbol(s)
+      );
+      
+      if (validContextSymbols.length >= 1) {
+        Logger.debug(`Single letter "${symbol}" accepted due to top picks context: ${validContextSymbols.join(', ')}`);
+        return true;
+      }
+    }
+
+    // Default to standard validation
+    return this.isValidStockSymbol(symbol);
   }
 
   public hasTopPicks(content: string): boolean {

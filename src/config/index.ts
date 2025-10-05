@@ -86,9 +86,11 @@ export const HEBREW_STOPWORDS = new Set([
   'שימו', 'שלום', 'שם', 'שני', 'תוך'
 ]);
 
-export const SYMBOL_PATTERN = /\b([A-Z]{1,5})\b/g;
+// Enhanced regex for better Unicode and Hebrew text support
+// Matches symbols after $ or # prefix, or with proper word boundaries including Unicode support
+export const SYMBOL_PATTERN = /(?:[$#]([A-Z]{1,5})(?![A-Z])|(?<![A-Za-z])([A-Z]{1,5})(?![A-Za-z]))/g;
 export const MAX_DISCORD_BUTTONS = 25;
-export const DAYS_TO_SCRAPE = 14;
+export const DAYS_TO_SCRAPE = 20;
 
 export const HEBREW_KEYWORDS = {
   strong: [

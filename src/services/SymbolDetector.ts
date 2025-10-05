@@ -1,13 +1,20 @@
 import { StockSymbol } from '../types';
-import { SYMBOL_PATTERN, COMMON_WORDS } from '../config';
+import { SYMBOL_PATTERN, COMMON_WORDS, HEBREW_KEYWORDS } from '../config';
 import { Logger } from '../utils/Logger';
 import { TopPicksParser, TopPicksResult } from './TopPicksParser';
+import { Client, TextChannel } from 'discord.js';
 
 export class SymbolDetector {
   private topPicksParser: TopPicksParser;
+  private client: Client | undefined;
+  private analysisChannels: string[] = [];
+  private discussionChannels: string[] = [];
 
-  constructor() {
+  constructor(client?: Client, analysisChannels?: string[], discussionChannels?: string[]) {
     this.topPicksParser = new TopPicksParser();
+    this.client = client;
+    this.analysisChannels = analysisChannels || [];
+    this.discussionChannels = discussionChannels || [];
   }
 
   public detectSymbolsFromTopPicks(content: string): StockSymbol[] {
@@ -35,22 +42,141 @@ export class SymbolDetector {
   }
 
   public detectSymbolsFromAnalysis(content: string): StockSymbol[] {
-    // Use regex pattern matching for analysis channels (no top picks)
+    // Synchronous version for backward compatibility
+    Logger.debug(`Starting three-pass symbol detection for content: "${content.substring(0, 100)}..."`);
+    
+    // Pass 1: Standard detection
     const symbols: StockSymbol[] = [];
     const matches = content.matchAll(SYMBOL_PATTERN);
+    const rejectedSingleLetters: { symbol: string, position: number }[] = [];
     
     for (const match of matches) {
-      const symbol = match[1]!;
+      // Handle two capture groups: [1] for $/#-prefixed symbols, [2] for regular symbols
+      const symbol = match[1] || match[2];
+      if (!symbol) continue;
+      
       const position = match.index!;
       
       if (this.isValidSymbol(symbol)) {
         const confidence = this.calculateConfidence(symbol, content, position);
         symbols.push({ symbol, confidence, position, priority: 'regular' });
+      } else if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
+        // Collect rejected single letters for further analysis
+        rejectedSingleLetters.push({ symbol, position });
+      }
+    }
+
+    Logger.debug(`Pass 1 complete: Found ${symbols.length} valid symbols, ${rejectedSingleLetters.length} rejected single letters`);
+
+    // Pass 2: Context-aware recovery for lists AND strong patterns
+    if (symbols.length >= 2) {
+      Logger.debug(`Pass 2: Context trust enabled - checking ${rejectedSingleLetters.length} rejected single letters`);
+      for (const rejected of rejectedSingleLetters) {
+        if (this.hasStrongSingleLetterContext(rejected.symbol, content, rejected.position)) {
+          const confidence = this.calculateConfidence(rejected.symbol, content, rejected.position);
+          symbols.push({ 
+            symbol: rejected.symbol, 
+            confidence: confidence + 0.2, // Context trust bonus
+            position: rejected.position, 
+            priority: 'regular' 
+          });
+          Logger.debug(`Pass 2: Added single letter "${rejected.symbol}" via context trust`);
+        }
+      }
+    } else if (rejectedSingleLetters.length > 0) {
+      Logger.debug(`Pass 2: Strong pattern check - checking ${rejectedSingleLetters.length} rejected single letters`);
+      for (const rejected of rejectedSingleLetters) {
+        if (this.hasStrongSingleLetterContext(rejected.symbol, content, rejected.position)) {
+          const beforeChar = rejected.position > 0 ? content[rejected.position - 1] || ' ' : ' ';
+          const symbolStart = Math.max(0, rejected.position - 1);
+          const symbolText = content.slice(symbolStart, rejected.position + rejected.symbol.length + 1);
+          
+          // Check if it's a strong prefix pattern ($ or #)
+          const hasStrongPrefix = beforeChar === '$' || beforeChar === '#' || symbolText.includes('$' + rejected.symbol) || symbolText.includes('#' + rejected.symbol);
+          
+          if (hasStrongPrefix) {
+            const confidence = this.calculateConfidence(rejected.symbol, content, rejected.position);
+            symbols.push({ 
+              symbol: rejected.symbol, 
+              confidence: confidence + 0.1, // Strong pattern bonus
+              position: rejected.position, 
+              priority: 'regular' 
+            });
+            Logger.debug(`Pass 2: Added single letter "${rejected.symbol}" via strong prefix pattern`);
+          } else {
+            // For list context, we need at least 1 valid symbol for trust
+            if (symbols.length >= 1) {
+              const confidence = this.calculateConfidence(rejected.symbol, content, rejected.position);
+              symbols.push({ 
+                symbol: rejected.symbol, 
+                confidence: confidence + 0.15, // List context bonus
+                position: rejected.position, 
+                priority: 'regular' 
+              });
+              Logger.debug(`Pass 2: Added single letter "${rejected.symbol}" via list context with 1+ symbols`);
+            }
+          }
+        }
       }
     }
 
     const finalSymbols = this.deduplicateAndSort(symbols);
-    Logger.debug(`Detected analysis symbols: ${finalSymbols.map(s => s.symbol).join(', ')}`);
+    Logger.debug(`Final detection result: ${finalSymbols.map(s => s.symbol).join(', ')}`);
+    
+    return finalSymbols;
+  }
+
+  public async detectSymbolsWithContext(content: string, isTopPicks: boolean = false): Promise<StockSymbol[]> {
+    Logger.debug(`Starting three-pass symbol detection for content: "${content.substring(0, 100)}..."`);
+    
+    // Pass 1: Standard detection
+    const symbols: StockSymbol[] = [];
+    const matches = content.matchAll(SYMBOL_PATTERN);
+    const rejectedSingleLetters: { symbol: string, position: number }[] = [];
+    
+    for (const match of matches) {
+      // Handle two capture groups: [1] for $/#-prefixed symbols, [2] for regular symbols
+      const symbol = match[1] || match[2];
+      if (!symbol) continue;
+      
+      const position = match.index!;
+      
+      if (this.isValidSymbol(symbol)) {
+        const confidence = this.calculateConfidence(symbol, content, position);
+        symbols.push({ symbol, confidence, position, priority: 'regular' });
+      } else if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
+        // Collect rejected single letters for further analysis
+        rejectedSingleLetters.push({ symbol, position });
+      }
+    }
+
+    Logger.debug(`Pass 1 complete: Found ${symbols.length} valid symbols, ${rejectedSingleLetters.length} rejected single letters`);
+
+    // Pass 2: Context-aware recovery for lists and top picks
+    if (symbols.length >= 2 || isTopPicks) {
+      Logger.debug('Pass 2: Enabling context trust for single letters');
+      for (const rejected of rejectedSingleLetters) {
+        if (this.hasStrongSingleLetterContext(rejected.symbol, content, rejected.position)) {
+          const confidence = this.calculateConfidence(rejected.symbol, content, rejected.position);
+          symbols.push({ 
+            symbol: rejected.symbol, 
+            confidence: confidence + 0.2, // Bonus for context trust
+            position: rejected.position, 
+            priority: 'regular' 
+          });
+          Logger.debug(`Pass 2: Added single letter "${rejected.symbol}" via context trust`);
+        }
+      }
+    }
+
+    // Pass 3: Historical validation for strong patterns (async)
+    if (this.client && rejectedSingleLetters.length > 0) {
+      const historicalResults = await this.validateSingleLettersInHistory(rejectedSingleLetters, content);
+      symbols.push(...historicalResults);
+    }
+
+    const finalSymbols = this.deduplicateAndSort(symbols);
+    Logger.debug(`Final detection result: ${finalSymbols.map(s => s.symbol).join(', ')}`);
     
     return finalSymbols;
   }
@@ -85,26 +211,45 @@ export class SymbolDetector {
   private calculateConfidence(symbol: string, content: string, position: number): number {
     let confidence = 0.5;
 
+    // Check for $ or # prefix (may be captured in the symbol match or before the position)
     const beforeChar = position > 0 ? content[position - 1] || ' ' : ' ';
-    const afterChar = position + symbol.length < content.length ? content[position + symbol.length] || ' ' : ' ';
-
-    if (beforeChar === '$') {
+    const symbolStart = Math.max(0, position - 1);
+    const symbolText = content.slice(symbolStart, position + symbol.length + 1);
+    
+    if (beforeChar === '$' || symbolText.includes('$' + symbol)) {
       confidence += 0.4;
+      Logger.debug(`Symbol "${symbol}" gets $ prefix bonus`);
     }
 
-    if (beforeChar === '#') {
+    if (beforeChar === '#' || symbolText.includes('#' + symbol)) {
       confidence += 0.3;
+      Logger.debug(`Symbol "${symbol}" gets # prefix bonus`);
     }
 
     const lowerContent = content.toLowerCase();
-    const stockKeywords = ['stock', 'ticker', 'symbol', 'shares', 'equity', 'trade', 'buy', 'sell', 'analysis', 'chart', 'price', 'target'];
-    const keywordBonus = stockKeywords.some(keyword => lowerContent.includes(keyword)) ? 0.2 : 0;
-    confidence += keywordBonus;
+    
+    // English stock keywords
+    const englishKeywords = ['stock', 'ticker', 'symbol', 'shares', 'equity', 'trade', 'buy', 'sell', 'analysis', 'chart', 'price', 'target'];
+    const englishKeywordBonus = englishKeywords.some(keyword => lowerContent.includes(keyword)) ? 0.2 : 0;
+    confidence += englishKeywordBonus;
+
+    // Hebrew keywords - check all categories
+    const hebrewStrongBonus = HEBREW_KEYWORDS.strong.some(keyword => content.includes(keyword)) ? 0.3 : 0;
+    const hebrewMediumBonus = HEBREW_KEYWORDS.medium.some(keyword => content.includes(keyword)) ? 0.2 : 0;
+    const hebrewWeakBonus = HEBREW_KEYWORDS.weak.some(keyword => content.includes(keyword)) ? 0.1 : 0;
+    
+    const hebrewBonus = Math.max(hebrewStrongBonus, hebrewMediumBonus, hebrewWeakBonus);
+    confidence += hebrewBonus;
+    
+    if (hebrewBonus > 0) {
+      Logger.debug(`Symbol "${symbol}" gets Hebrew keyword bonus: ${hebrewBonus}`);
+    }
 
     if (symbol.length >= 2 && symbol.length <= 4) {
       confidence += 0.1;
     }
 
+    const afterChar = position + symbol.length < content.length ? content[position + symbol.length] || ' ' : ' ';
     if (/\s/.test(beforeChar) && /\s/.test(afterChar)) {
       confidence += 0.1;
     }
@@ -165,6 +310,158 @@ export class SymbolDetector {
   }
 
   public isLikelyStockSymbol(symbol: string): boolean {
+    return this.isValidSymbol(symbol);
+  }
+
+  private hasStrongSingleLetterContext(symbol: string, content: string, position: number): boolean {
+    // Check for strong stock context indicators
+    const symbolStart = Math.max(0, position - 1);
+    const symbolText = content.slice(symbolStart, position + symbol.length + 1);
+    const beforeChar = position > 0 ? content[position - 1] || ' ' : ' ';
+    const afterChar = position + symbol.length < content.length ? content[position + symbol.length] || ' ' : ' ';
+
+    // Strong prefix indicators - check both beforeChar and within symbolText for cases like $F
+    if (beforeChar === '$' || beforeChar === '#' || symbolText.includes('$' + symbol) || symbolText.includes('#' + symbol)) {
+      Logger.debug(`Single letter "${symbol}" has strong prefix indicator`);
+      return true;
+    }
+
+    // Check if appears in a comma/slash separated list context
+    // More flexible patterns to catch various list formats including emoji separators
+    const listPatterns = [
+      // Emoji-aware: multi-letter symbol, then non-letter chars, then our symbol
+      new RegExp(`[A-Z]{2,5}[^A-Za-z]+${symbol}(?![A-Za-z])`, 'i'),
+      // Emoji-aware: our symbol, then non-letter chars, then multi-letter symbol  
+      new RegExp(`${symbol}[^A-Za-z]+[A-Z]{2,5}`, 'i'),
+      // Traditional patterns for backup
+      new RegExp(`[A-Z]{2,5}[\\s,/]+[A-Z]{2,5}[\\s,/]+${symbol}(?:[\\s,/]+[A-Z]{1,5})?`, 'i'),
+      new RegExp(`${symbol}[\\s,/]+[A-Z]{2,5}[\\s,/]+[A-Z]{2,5}`, 'i'),
+      new RegExp(`[A-Z]{2,5}[\\s,/]+${symbol}(?![A-Za-z])`, 'i'),
+      new RegExp(`${symbol}[\\s,/]+[A-Z]{2,5}`, 'i'),
+      // Single letter to single letter: F / C or C / F
+      new RegExp(`[A-Z][\\s,/]+${symbol}(?![A-Za-z])`, 'i'),
+      new RegExp(`${symbol}[\\s,/]+[A-Z](?![A-Za-z])`, 'i'),
+      // Pattern for symbols at the end with non-letter characters
+      new RegExp(`[A-Z]{2,5}[\\s,/]+${symbol}(?![A-Za-z0-9])`, 'i')
+    ];
+    
+    if (listPatterns.some(pattern => pattern.test(content))) {
+      Logger.debug(`Single letter "${symbol}" appears in list context`);
+      return true;
+    }
+
+    // Check for explicit stock keywords nearby (both English and Hebrew)
+    const surroundingText = content.slice(Math.max(0, position - 30), position + 30);
+    const lowerSurrounding = surroundingText.toLowerCase();
+    
+    // English keywords
+    const englishKeywords = ['target', 'breakout', 'analysis', 'stock', 'price', 'chart'];
+    if (englishKeywords.some(keyword => lowerSurrounding.includes(keyword))) {
+      Logger.debug(`Single letter "${symbol}" has English stock keywords in context`);
+      return true;
+    }
+
+    // Hebrew keywords
+    const hebrewKeywords = [...HEBREW_KEYWORDS.strong, ...HEBREW_KEYWORDS.medium];
+    if (hebrewKeywords.some(keyword => surroundingText.includes(keyword))) {
+      Logger.debug(`Single letter "${symbol}" has Hebrew stock keywords in context`);
+      return true;
+    }
+
+    return false;
+  }
+
+  private async validateSingleLettersInHistory(
+    rejectedLetters: { symbol: string, position: number }[], 
+    originalContent: string
+  ): Promise<StockSymbol[]> {
+    if (!this.client || rejectedLetters.length === 0) {
+      return [];
+    }
+
+    const validatedSymbols: StockSymbol[] = [];
+    
+    // Only validate single letters that have strong pattern indicators in current message
+    const strongPatterns = rejectedLetters.filter(item => {
+      const position = item.position;
+      const beforeChar = position > 0 ? originalContent[position - 1] || ' ' : ' ';
+      // Only check history for $X or #X patterns that were rejected
+      return beforeChar === '$' || beforeChar === '#';
+    });
+
+    if (strongPatterns.length === 0) {
+      Logger.debug('No strong single letter patterns found, skipping historical validation');
+      return [];
+    }
+
+    Logger.debug(`Validating ${strongPatterns.length} strong single letter patterns in history`);
+
+    try {
+      // Check recent messages in analysis and discussion channels
+      const channelsToCheck = [...this.analysisChannels, ...this.discussionChannels];
+      
+      for (const channelId of channelsToCheck) {
+        try {
+          const channel = await this.client.channels.fetch(channelId) as TextChannel;
+          if (!channel?.isTextBased()) continue;
+
+          // Fetch recent messages (last 50)
+          const messages = await channel.messages.fetch({ limit: 50 });
+          
+          for (const strongPattern of strongPatterns) {
+            const symbol = strongPattern.symbol;
+            
+            // Look for $SYMBOL or #SYMBOL patterns in recent messages
+            const hasStrongPattern = messages.some(msg => {
+              const content = msg.content;
+              return content.includes(`$${symbol}`) || content.includes(`#${symbol}`);
+            });
+
+            if (hasStrongPattern) {
+              const confidence = this.calculateConfidence(symbol, originalContent, strongPattern.position);
+              validatedSymbols.push({
+                symbol,
+                confidence: confidence + 0.3, // Bonus for historical validation
+                position: strongPattern.position,
+                priority: 'regular'
+              });
+              Logger.debug(`Pass 3: Validated single letter "${symbol}" via historical analysis`);
+            }
+          }
+          
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+        } catch (error) {
+          Logger.warn(`Error checking channel ${channelId} for historical validation:`, error);
+        }
+      }
+    } catch (error) {
+      Logger.error('Error during historical validation:', error);
+    }
+
+    return validatedSymbols;
+  }
+
+  public isValidSymbolWithContext(symbol: string, contextSymbols: string[]): boolean {
+    // Use standard validation for multi-letter symbols
+    if (symbol.length > 1) {
+      return this.isValidSymbol(symbol);
+    }
+
+    // For single letters, allow if there are 1+ valid symbols in context
+    if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
+      const validContextSymbols = contextSymbols.filter(s => 
+        s !== symbol && this.isValidSymbol(s)
+      );
+      
+      if (validContextSymbols.length >= 1) {
+        Logger.debug(`Single letter "${symbol}" accepted due to context: ${validContextSymbols.join(', ')}`);
+        return true;
+      }
+    }
+
+    // Default to standard validation
     return this.isValidSymbol(symbol);
   }
 }

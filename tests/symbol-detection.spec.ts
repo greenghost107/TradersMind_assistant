@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SymbolDetector } from '../src/services/SymbolDetector';
 import { AnalysisLinker } from '../src/services/AnalysisLinker';
+import { TopPicksParser } from '../src/services/TopPicksParser';
 
 test.describe('Symbol Detection', () => {
   let symbolDetector: SymbolDetector;
@@ -89,6 +90,213 @@ test.describe('Symbol Detection', () => {
     
     expect(symbols.length).toBe(2);
     expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['AAPL', 'TSLA']));
+  });
+});
+
+test.describe('Single Letter Symbol Detection', () => {
+  let symbolDetector: SymbolDetector;
+  let topPicksParser: TopPicksParser;
+
+  test.beforeEach(() => {
+    symbolDetector = new SymbolDetector();
+    topPicksParser = new TopPicksParser();
+  });
+
+  test('should reject single letters by default', () => {
+    const message = 'F alone without context';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    expect(symbols).toHaveLength(0);
+  });
+
+  test('should accept hardcoded single letters A and I', () => {
+    const message = 'A and I are valid symbols';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    expect(symbols.length).toBeGreaterThanOrEqual(2);
+    expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['A', 'I']));
+  });
+
+  test('should accept single letters with strong prefix indicators', () => {
+    const message = '$F target price updated';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect F due to $ prefix context
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.symbol).toBe('F');
+    expect(symbols[0]!.confidence).toBeGreaterThan(0.7); // High confidence due to $ prefix
+  });
+
+  test('should enable context trust in multi-symbol lists', () => {
+    const message = 'AAPL, MSFT, F, C are all trending';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect all symbols including F and C due to context trust
+    expect(symbols).toHaveLength(4);
+    expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['AAPL', 'MSFT', 'F', 'C']));
+  });
+
+  test('should reject single letters embedded in words', () => {
+    const message = 'Federal Reserve announcement';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should not detect F from "Federal"
+    expect(symbols).toHaveLength(0);
+  });
+
+  test('should detect single letters in deals format', () => {
+    const message = 'MSFT / SHOP / F / C 👀';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect all symbols due to deals list context
+    expect(symbols).toHaveLength(4);
+    expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['MSFT', 'SHOP', 'F', 'C']));
+  });
+
+  test('should handle Hebrew text with single letter stock symbols', () => {
+    const message = 'פורד מוטורס $F✅ slow and steady...';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect F due to $ prefix
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.symbol).toBe('F');
+  });
+
+  test('should detect single letters in top picks context', () => {
+    const content = `טופ פיקס:
+    📈 long: AAPL, MSFT, F, C
+    📉 short: TSLA, NVDA`;
+    
+    const result = topPicksParser.parseTopPicks(content);
+    
+    // Should detect all long picks including F and C
+    expect(result.longPicks).toHaveLength(4);
+    expect(result.longPicks).toEqual(expect.arrayContaining(['AAPL', 'MSFT', 'F', 'C']));
+    expect(result.shortPicks).toEqual(expect.arrayContaining(['TSLA', 'NVDA']));
+  });
+
+  test('should handle mixed single and multi-letter symbols in top picks', () => {
+    const content = `❕ טופ פיקס:
+    📈 long: ATGE, MSFT, C, SHOP, SOUN, F
+    📉 short: X, SPCE`;
+    
+    const result = topPicksParser.parseTopPicks(content);
+    
+    // Should detect all symbols including single letters C, F, X
+    expect(result.longPicks).toHaveLength(6);
+    expect(result.longPicks).toEqual(expect.arrayContaining(['ATGE', 'MSFT', 'C', 'SHOP', 'SOUN', 'F']));
+    expect(result.shortPicks).toHaveLength(2);
+    expect(result.shortPicks).toEqual(expect.arrayContaining(['X', 'SPCE']));
+  });
+
+  test('should validate context-aware symbol validation method', () => {
+    const contextSymbols = ['AAPL', 'MSFT', 'F', 'RANDOM'];
+    
+    // Multi-letter symbols should use standard validation
+    expect(symbolDetector.isValidSymbolWithContext('AAPL', contextSymbols)).toBe(true);
+    expect(symbolDetector.isValidSymbolWithContext('TOOLONGTEXT', contextSymbols)).toBe(false);
+    
+    // Single letter F should be valid due to context (2+ valid symbols present)
+    expect(symbolDetector.isValidSymbolWithContext('F', contextSymbols)).toBe(true);
+    
+    // Single letter without sufficient context should be invalid
+    expect(symbolDetector.isValidSymbolWithContext('F', ['ONLY'])).toBe(false);
+  });
+
+  test('should handle edge case with only single letters', () => {
+    const message = 'F C X alone';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // No multi-letter symbols to provide context, so single letters should be rejected
+    expect(symbols).toHaveLength(0);
+  });
+
+  test('should detect symbols with various separators', () => {
+    const testCases = [
+      'AAPL/F/C',
+      'AAPL / F / C',
+      'AAPL, F, C',
+      'AAPL F C',
+      'AAPL　F　C', // Full-width space
+    ];
+    
+    testCases.forEach(message => {
+      const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+      expect(symbols).toHaveLength(3);
+      expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['AAPL', 'F', 'C']));
+    });
+  });
+
+  test('should handle complex emoji-rich messages with single letters', () => {
+    const message = '🔥AAPL🔥 💎F💎 ⚡C⚡ watch these!';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect all symbols including single letters due to context
+    expect(symbols).toHaveLength(3);
+    expect(symbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['AAPL', 'F', 'C']));
+  });
+
+  test('should prioritize $ prefix over context for confidence', () => {
+    const message1 = 'AAPL MSFT F'; // Context trust
+    const message2 = 'AAPL MSFT $F'; // $ prefix + context
+    
+    const symbols1 = symbolDetector.detectSymbolsFromAnalysis(message1);
+    const symbols2 = symbolDetector.detectSymbolsFromAnalysis(message2);
+    
+    const fSymbol1 = symbols1.find(s => s.symbol === 'F');
+    const fSymbol2 = symbols2.find(s => s.symbol === 'F');
+    
+    expect(fSymbol1).toBeTruthy();
+    expect(fSymbol2).toBeTruthy();
+    expect(fSymbol2!.confidence).toBeGreaterThan(fSymbol1!.confidence);
+  });
+
+  test('should detect $F in Hebrew analysis message with emoji - Case 1', () => {
+    const message = `פורד מוטורס $F✅ 
+slow and steady...
+✍️ פריצה מבייס של שנה וחודשיים מיולי 2024.`;
+    
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect F symbol with high confidence due to $ prefix and Hebrew analysis context
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.symbol).toBe('F');
+    expect(symbols[0]!.confidence).toBeGreaterThan(0.8); // High confidence due to $ prefix + Hebrew keywords
+  });
+
+  test('should detect $F in Hebrew analysis message - Case 2', () => {
+    const message = `פורד מוטורס $F
+אינסייד קנדל מהזן ה-juicy לדעתי מעל בייס של שנה וחודשיים מיולי 2024.`;
+    
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect F symbol with high confidence due to $ prefix and Hebrew analysis context
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.symbol).toBe('F');
+    expect(symbols[0]!.confidence).toBeGreaterThan(0.8); // High confidence due to $ prefix + Hebrew keywords
+  });
+
+  test('should handle Hebrew technical analysis keywords for single letters', () => {
+    const testCases = [
+      { message: 'פריצה $F above resistance', expectedConfidence: 0.8 },
+      { message: 'אינסייד קנדל $C formation', expectedConfidence: 0.8 },
+      { message: 'בייס $X strong support', expectedConfidence: 0.8 },
+    ];
+    
+    testCases.forEach(({ message, expectedConfidence }) => {
+      const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+      expect(symbols).toHaveLength(1);
+      expect(symbols[0]!.confidence).toBeGreaterThan(expectedConfidence);
+    });
+  });
+
+  test('should extract symbols correctly with Unicode emojis and Hebrew text', () => {
+    const message = 'Testing $F✅ with emoji and Hebrew פריצה';
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(message);
+    
+    // Should detect F despite Unicode emoji
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.symbol).toBe('F');
   });
 });
 
