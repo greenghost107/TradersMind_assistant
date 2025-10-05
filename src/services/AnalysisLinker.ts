@@ -4,14 +4,14 @@ import { SymbolDetector } from './SymbolDetector';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
 import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
-import { HEBREW_KEYWORDS } from '../config';
+import { HEBREW_KEYWORDS, DAYS_TO_SCRAPE } from '../config';
 
 export class AnalysisLinker {
   private analysisCache: Map<string, AnalysisData[]> = new Map();
   private latestAnalysisMap: Map<string, AnalysisData> = new Map();
   private symbolDetector: SymbolDetector;
   private urlExtractor: UrlExtractor;
-  private readonly MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  private readonly MAX_CACHE_AGE_MS = DAYS_TO_SCRAPE * 24 * 60 * 60 * 1000;
 
   constructor() {
     this.symbolDetector = new SymbolDetector();

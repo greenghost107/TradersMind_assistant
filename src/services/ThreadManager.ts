@@ -1,12 +1,12 @@
 import { Client, TextChannel, ThreadChannel, Collection, Message } from 'discord.js';
 import { Logger } from '../utils/Logger';
+import { DAYS_TO_SCRAPE } from '../config';
 
 export class ThreadManager {
   private threadMessageCache: Map<string, Set<string>> = new Map();
   private cacheExpiry: Map<string, number> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000;
   private readonly analysisChannels: string[];
-  private readonly DAYS_TO_SCRAPE = 20;
   constructor(analysisChannels: string[]) {
     this.analysisChannels = analysisChannels;
   }
@@ -127,7 +127,7 @@ export class ThreadManager {
       // Get archived threads if requested
       if (includeArchived) {
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - this.DAYS_TO_SCRAPE);
+        cutoffDate.setDate(cutoffDate.getDate() - DAYS_TO_SCRAPE);
 
         const archivedThreads = await channel.threads.fetchArchived({ type: 'public', limit: 50 });
         for (const thread of archivedThreads.threads.values()) {
@@ -234,7 +234,7 @@ export class ThreadManager {
       // Fetch archived threads if requested (for historical scraping)
       if (includeArchived) {
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - this.DAYS_TO_SCRAPE); // Last DAYS_TO_SCRAPE days
+        cutoffDate.setDate(cutoffDate.getDate() - DAYS_TO_SCRAPE); // Last DAYS_TO_SCRAPE days
         
         const archivedThreads = await channel.threads.fetchArchived({
           type: 'public',

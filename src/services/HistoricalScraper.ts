@@ -6,6 +6,7 @@ import { Logger } from '../utils/Logger';
 import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
 import { ThreadManager } from './ThreadManager';
 import { DiscussionChannelHandler } from './DiscussionChannelHandler';
+import { DAYS_TO_SCRAPE } from '../config';
 
 export class HistoricalScraper {
   private symbolDetector: SymbolDetector;
@@ -13,7 +14,6 @@ export class HistoricalScraper {
   private threadManager: ThreadManager;
   private discussionChannelHandler: DiscussionChannelHandler;
   private config: BotConfig;
-  private readonly DAYS_TO_SCRAPE = 7;
   private readonly REQUEST_DELAY_MS = 100;
 
   constructor(config: BotConfig) {
@@ -28,10 +28,10 @@ export class HistoricalScraper {
     client: Client,
     config: BotConfig
   ): Promise<Map<string, AnalysisData>> {
-    Logger.info(`Starting historical analysis scrape (last ${this.DAYS_TO_SCRAPE} days)...`);
+    Logger.info(`Starting historical analysis scrape (last ${DAYS_TO_SCRAPE} days)...`);
     
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - this.DAYS_TO_SCRAPE);
+    cutoffDate.setDate(cutoffDate.getDate() - DAYS_TO_SCRAPE);
     
     const latestAnalysisMap = new Map<string, AnalysisData>();
     let totalMessagesProcessed = 0;

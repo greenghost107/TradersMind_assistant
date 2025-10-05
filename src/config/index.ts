@@ -83,6 +83,7 @@ export const HEBREW_STOPWORDS = new Set([
 
 export const SYMBOL_PATTERN = /\b([A-Z]{1,5})\b/g;
 export const MAX_DISCORD_BUTTONS = 25;
+export const DAYS_TO_SCRAPE = 14;
 
 export const HEBREW_KEYWORDS = {
   strong: [
