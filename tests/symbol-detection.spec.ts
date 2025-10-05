@@ -491,3 +491,93 @@ test.describe('Analysis Linking', () => {
     expect(analysisLinker.getLatestAnalysisUrl('AAPL')).toBe('https://discord.com/channels/999/111111111/hist1');
   });
 });
+
+test.describe('False Positive Detection Prevention', () => {
+  let symbolDetector: SymbolDetector;
+
+  test.beforeEach(() => {
+    symbolDetector = new SymbolDetector();
+  });
+
+  test('Should reject S&P false positive detection', async () => {
+    // Hebrew message with S&P reference - should not be indexed
+    const hebrewSPMessage = `אינדקסים כמעט ירוקים. איזה יום מדהים, סוחרים נמדדים ברגעים האלה.
+שהכל טוב ויפה קל להגיד אני סוחר ביי דה סיסטם.
+💎 וכמובן לעד Pro's at the close💎 
+לעד amatures ינסו לחזות דברים וצ'מפיונס פשוט יעקבו אחרי הפרייס אקשן.
+מדהים. טרייד לייק צ'מפיונס🏆 
+לקרוא שוב את ההודעת S&P היומית בבקשה בחדר כללי🙏 
+@everyone`;
+
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(hebrewSPMessage);
+    
+    // Should not detect any symbols (especially not S and P)
+    expect(symbols).toHaveLength(0);
+    
+    // Verify specific symbols are not detected
+    const symbolNames = symbols.map(s => s.symbol);
+    expect(symbolNames).not.toContain('S');
+    expect(symbolNames).not.toContain('P');
+  });
+
+  test('Should reject technical analysis terms as false positives', async () => {
+    // Hebrew message with technical analysis terms - should not be indexed
+    const technicalAnalysisMessage = `משתמש בממוצע אקספוננציאלי רק לממוצע 20, כלומר EMA20 , כחול אצלי בגרפים.
+ממוצעים רגילים 50 (ירוק) ו-200 (אדום) , נקרא DMA / SMA / MA --> הכל אותו דבר.
+
+ה-EMA אצלי הוא תמיד רק על ה-20. 
+כי זה השורט טרם טרנד, והוא אקספוננציאלי כי הוא נותן עדיפות בחישוב הממוצע לימי המסחר האחרונים וזה מה שאני רוצה לראות בחישוב הממוצע של הטרנד בטווח הקצר.
+השאר ה-50/200 הם קבועם ורגילים. אפשר לקרוא להם SMA שזה Simple Moving Average או DMA כמו שאני קורא להם Daily Moving Average.
+
+אני יודע שאתה יודע את זה יוחאי, פשוט למען מי שהצטרף לאחרונה ואולי לא יודע מה כל ממוצע אצלי בגרף`;
+
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(technicalAnalysisMessage);
+    
+    // Should not detect any symbols (especially not EMA, DMA, SMA, MA)
+    expect(symbols).toHaveLength(0);
+    
+    // Verify specific technical terms are not detected
+    const symbolNames = symbols.map(s => s.symbol);
+    expect(symbolNames).not.toContain('EMA');
+    expect(symbolNames).not.toContain('DMA');
+    expect(symbolNames).not.toContain('SMA');
+    expect(symbolNames).not.toContain('MA');
+  });
+
+  test('Should reject geographic codes as false positives', async () => {
+    // Message with geographic reference - should not be indexed
+    const geographicMessage = `US Investing Champion
+https://x.com/LeifSoreide/status/1974142178168615332`;
+
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(geographicMessage);
+    
+    // Should not detect any symbols (especially not US)
+    expect(symbols).toHaveLength(0);
+    
+    // Verify US is not detected
+    const symbolNames = symbols.map(s => s.symbol);
+    expect(symbolNames).not.toContain('US');
+  });
+
+  test('Regression test: legitimate symbols should still work', async () => {
+    // Test that our fixes don't break legitimate cases
+    
+    // 1. Deals format should still work
+    const dealsMessage = 'F / ATGE 👀';
+    const dealsSymbols = symbolDetector.detectSymbolsFromAnalysis(dealsMessage);
+    expect(dealsSymbols).toHaveLength(2);
+    expect(dealsSymbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['F', 'ATGE']));
+    
+    // 2. Hebrew $F should still work
+    const hebrewFMessage = 'פורד מוטורס $F✅ slow and steady...';
+    const hebrewFSymbols = symbolDetector.detectSymbolsFromAnalysis(hebrewFMessage);
+    expect(hebrewFSymbols).toHaveLength(1);
+    expect(hebrewFSymbols[0].symbol).toBe('F');
+    
+    // 3. Multi-symbol lists should still work
+    const multiSymbolMessage = 'AAPL, MSFT, F, C are all trending';
+    const multiSymbols = symbolDetector.detectSymbolsFromAnalysis(multiSymbolMessage);
+    expect(multiSymbols).toHaveLength(4);
+    expect(multiSymbols.map(s => s.symbol)).toEqual(expect.arrayContaining(['AAPL', 'MSFT', 'F', 'C']));
+  });
+});

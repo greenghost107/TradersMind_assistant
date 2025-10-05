@@ -71,7 +71,14 @@ export const COMMON_WORDS = new Set([
   'HTTPS', 'COM', 'DISCORD', 'CHANNELS', 'EVERYONE',
   // Common English trading noise
   'EARNING', 'GAP', 'WATCH', 'LEADERS', 'FOLLOW', 'ADVANCE', 'PRO', 'INVESTING', 'STRENGTH',
-  'ACTION', 'BOUNCE', 'PLAN', 'STATUS', 'SECTOR', 'PLAY', 'STOCK', 'YOUR', 'AGAINST'
+  'ACTION', 'BOUNCE', 'PLAN', 'STATUS', 'SECTOR', 'PLAY', 'STOCK', 'YOUR', 'AGAINST',
+  // Technical Analysis indicators
+  'EMA', 'SMA', 'DMA', 'MA', 'RSI', 'MACD', 'VWAP', 'BB', 'ATR', 'ADX', 'CCI', 'MFI',
+  'EMA20', 'SMA50', 'SMA200', 'DMA50', 'DMA200', 'RSI14', 'MACD12', 'BB20',
+  // Geographic/Country codes  
+  'US', 'UK', 'EU', 'CA', 'AU', 'JP', 'CN', 'DE', 'FR', 'IT', 'ES', 'KR',
+  // Financial indices and ETFs
+  'SP', 'DOW', 'QQQ', 'SPY', 'VIX', 'IWM', 'GDX', 'TLT', 'DXY'
 ]);
 
 // Hebrew stopwords - high-frequency generic words with little trading value
