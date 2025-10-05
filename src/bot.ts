@@ -88,11 +88,14 @@ class TradersMindBot {
         const discussionInfo = this.config.discussionChannels.length > 0 
           ? `, Discussion=[${this.config.discussionChannels.join(', ')}]`
           : '';
+        const dealsInfo = this.config.dealsChannel
+          ? `, Deals=${this.config.dealsChannel}`
+          : '';
         const managerInfo = this.config.managerId
           ? `, ManagerID=${this.config.managerId}`
           : '';
         
-        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}${discussionInfo}${managerInfo}`);
+        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}${discussionInfo}${dealsInfo}${managerInfo}`);
         
         // Run permission diagnostics before initialization (non-blocking)
         this.latestPermissionReport = await this.permissionDiagnostic.runStartupDiagnostics(this.client, this.config);
@@ -133,26 +136,34 @@ class TradersMindBot {
         }
       }
 
-      // Handle general notices channel (existing functionality)
+      // Handle general notices channel (existing functionality) - any user can trigger buttons
       await this.channelScanner.handleMessage(message, this.config);
       
-      // Handle all configured channels - only process manager messages
+      // Handle manager-only channels (analysis, discussion, deals)
       const isAnalysisChannel = this.config.analysisChannels.includes(message.channel.id);
       const isDiscussionChannel = this.config.discussionChannels.includes(message.channel.id);
+      const isGeneralChannel = this.config.generalNoticesChannel === message.channel.id;
+      const isDealsChannel = this.config.dealsChannel && message.channel.id === this.config.dealsChannel;
       
-      if (isAnalysisChannel || isDiscussionChannel) {
+      // Process manager-only channels
+      if (isAnalysisChannel || isDiscussionChannel || isDealsChannel) {
         if (this.discussionChannelHandler.isManagerMessage(message, this.config)) {
-          const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
+          const channelType = isAnalysisChannel ? 'analysis' : (isDiscussionChannel ? 'discussion' : 'deals');
           Logger.info(`📊 Processing ${channelType} channel message from manager ${message.member?.displayName || message.author.tag}`);
-          await this.analysisLinker.indexMessage(message);
           
-          // Process message for word frequency analysis if active
-          await this.wordFrequencyAnalyzer.processMessage(message, this.config);
+          // Only index analysis and discussion messages, not deals (deals will be handled by DealsChannelHandler in future phases)
+          if (!isDealsChannel) {
+            await this.analysisLinker.indexMessage(message);
+            
+            // Process message for word frequency analysis if active
+            await this.wordFrequencyAnalyzer.processMessage(message, this.config);
+          }
         } else {
-          const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
+          const channelType = isAnalysisChannel ? 'analysis' : (isDiscussionChannel ? 'discussion' : 'deals');
           Logger.debug(`Bot: Skipping ${channelType} channel message ${message.id} from non-manager ${message.author.tag}`);
         }
-      } else {
+      } else if (!isGeneralChannel) {
+        // Only log "not in configured channels" if it's truly not in any configured channel
         Logger.debug(`Bot: Message ${message.id} is NOT in configured channels`);
       }
     });
@@ -484,6 +495,17 @@ class TradersMindBot {
   private async loadCommands(): Promise<void> {
     const statusCommand = await import('./commands/status');
     this.commands.set('status', statusCommand);
+    
+    const createdealsCommand = await import('./commands/createdeals');
+    this.commands.set('createdeals', createdealsCommand);
+    
+    // Initialize createdeals command services
+    createdealsCommand.initializeServices(
+      this.discussionChannelHandler,
+      this.symbolDetector,
+      this.ephemeralHandler
+    );
+    
     Logger.info('Commands loaded');
   }
 }
