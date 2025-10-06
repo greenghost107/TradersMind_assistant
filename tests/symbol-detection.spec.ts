@@ -559,6 +559,59 @@ https://x.com/LeifSoreide/status/1974142178168615332`;
     expect(symbolNames).not.toContain('US');
   });
 
+  test('Should detect legitimate AU stock symbol', async () => {
+    // Hebrew message with AU stock (AngloGold Ashanti) - should be indexed
+    const auMessage = `מניית $AU✅
+עוד שיא חדש היום לאחר ששברה השבוע את השיא הקודם מאוגוסט 1987🚀 👏
+חלק מה-קאפ לארג בתחום הזהב בשבוע הזה.
+מקום 36 ברשימת הליידינג ורייד ווינרס.
+הנר השנתי שלה מדהים!`;
+
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(auMessage);
+    
+    // Should detect AU symbol (may also detect other legitimate symbols from the text)
+    expect(symbols.length).toBeGreaterThanOrEqual(1);
+    expect(symbols.map(s => s.symbol)).toContain('AU');
+    const auSymbol = symbols.find(s => s.symbol === 'AU');
+    expect(auSymbol).toBeTruthy();
+    expect(auSymbol!.confidence).toBeGreaterThan(0.8); // High confidence due to $ prefix + Hebrew keywords
+  });
+
+  test('Should detect legitimate IWM ETF symbol', async () => {
+    // Hebrew message with IWM ETF (Russell 2000) - should be indexed
+    const iwmMessage = `ראסל $IWM ✅
+לא סתם אני חופר כל עוד הממוצע נשמר רוכבים.
+עושה לנו שיא חדש היום🚀
+תנועה מדהימה מאז הפריצה, ריטסט והאינסייד קנדל.
+אם זה ייצא לפועל כמו בתחילת 2024 אז התנועה פה רק מתחילה⬇️
+⁠כללי🔸⁠
+✍️ ברייקאאוט של קו פריצה אלכסון מהשיא -> ירידה לריטסט -> אינסייד קנדל בונה קריירות על קו הפריצה האלכסון מהשיא + הממוצע -> באונס והמשכיות התנועה לבלו סקייס.`;
+
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(iwmMessage);
+    
+    // Should detect IWM symbol (may also detect other legitimate symbols from the text)
+    expect(symbols.length).toBeGreaterThanOrEqual(1);
+    expect(symbols.map(s => s.symbol)).toContain('IWM');
+    const iwmSymbol = symbols.find(s => s.symbol === 'IWM');
+    expect(iwmSymbol).toBeTruthy();
+    expect(iwmSymbol!.confidence).toBeGreaterThan(0.8); // High confidence due to $ prefix + Hebrew keywords
+  });
+
+  test('Should reject WH technical term as false positive', async () => {
+    // Message with WH (week high) technical term - should not be indexed
+    const whMessage = `לדעתי כן. הסטאפ שלה יוצא לפועל בצורה נהדרת. דעתי האישית היא בדרך ל-52WH חדש.
+עשתה 52WH --> תיקנה ונתמכה ב-AVWAP מהסווינג לואו --> באונס ופריצה יפה של קו הברייקאאוט + AVWAP 52 WH`;
+
+    const symbols = symbolDetector.detectSymbolsFromAnalysis(whMessage);
+    
+    // Should not detect any symbols (especially not WH)
+    expect(symbols).toHaveLength(0);
+    
+    // Verify WH is not detected
+    const symbolNames = symbols.map(s => s.symbol);
+    expect(symbolNames).not.toContain('WH');
+  });
+
   test('Regression test: legitimate symbols should still work', async () => {
     // Test that our fixes don't break legitimate cases
     
