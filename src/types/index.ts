@@ -4,7 +4,6 @@ export interface BotConfig {
   generalNoticesChannel: string;
   guildId: string;
   managerId?: string;
-  dealsChannel?: string;
 }
 
 export interface StockSymbol {

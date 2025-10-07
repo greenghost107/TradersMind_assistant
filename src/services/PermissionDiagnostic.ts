@@ -162,10 +162,6 @@ export class PermissionDiagnostic {
     const analyses: ChannelPermissionAnalysis[] = [];
     const allChannelIds = [...config.analysisChannels, ...config.discussionChannels, config.generalNoticesChannel];
     
-    // Add deals channel if configured
-    if (config.dealsChannel) {
-      allChannelIds.push(config.dealsChannel);
-    }
 
     for (const channelId of allChannelIds) {
       try {
@@ -199,16 +195,14 @@ export class PermissionDiagnostic {
     const isAnalysisChannel = config.analysisChannels.includes(channel.id);
     const isDiscussionChannel = config.discussionChannels.includes(channel.id);
     const isGeneralChannel = config.generalNoticesChannel === channel.id;
-    const isDealsChannel = config.dealsChannel === channel.id;
+    const isDealsChannel = false; // Deals channel functionality removed
     
     // Choose appropriate permission requirements based on channel type
     const channelPermissions = isAnalysisChannel 
       ? this.REQUIRED_ANALYSIS_CHANNEL_PERMISSIONS
       : isDiscussionChannel
         ? this.REQUIRED_DISCUSSION_CHANNEL_PERMISSIONS
-        : isDealsChannel
-          ? this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS // Deals channel needs same permissions as general (send messages, buttons)
-          : this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS;
+        : this.REQUIRED_GENERAL_CHANNEL_PERMISSIONS;
 
     for (const permission of channelPermissions) {
       const hasPermission = permissions?.has(PermissionsBitField.Flags[permission]) ?? false;

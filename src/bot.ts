@@ -88,14 +88,11 @@ class TradersMindBot {
         const discussionInfo = this.config.discussionChannels.length > 0 
           ? `, Discussion=[${this.config.discussionChannels.join(', ')}]`
           : '';
-        const dealsInfo = this.config.dealsChannel
-          ? `, Deals=${this.config.dealsChannel}`
-          : '';
         const managerInfo = this.config.managerId
           ? `, ManagerID=${this.config.managerId}`
           : '';
         
-        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}${discussionInfo}${dealsInfo}${managerInfo}`);
+        Logger.info(`Monitoring channels: Analysis=[${this.config.analysisChannels.join(', ')}], General=${this.config.generalNoticesChannel}${discussionInfo}${managerInfo}`);
         
         // Run permission diagnostics before initialization (non-blocking)
         this.latestPermissionReport = await this.permissionDiagnostic.runStartupDiagnostics(this.client, this.config);
@@ -143,23 +140,19 @@ class TradersMindBot {
       const isAnalysisChannel = this.config.analysisChannels.includes(message.channel.id);
       const isDiscussionChannel = this.config.discussionChannels.includes(message.channel.id);
       const isGeneralChannel = this.config.generalNoticesChannel === message.channel.id;
-      const isDealsChannel = this.config.dealsChannel && message.channel.id === this.config.dealsChannel;
       
       // Process manager-only channels
-      if (isAnalysisChannel || isDiscussionChannel || isDealsChannel) {
+      if (isAnalysisChannel || isDiscussionChannel) {
         if (this.discussionChannelHandler.isManagerMessage(message, this.config)) {
-          const channelType = isAnalysisChannel ? 'analysis' : (isDiscussionChannel ? 'discussion' : 'deals');
+          const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
           Logger.info(`📊 Processing ${channelType} channel message from manager ${message.member?.displayName || message.author.tag}`);
           
-          // Only index analysis and discussion messages, not deals (deals will be handled by DealsChannelHandler in future phases)
-          if (!isDealsChannel) {
-            await this.analysisLinker.indexMessage(message);
-            
-            // Process message for word frequency analysis if active
-            await this.wordFrequencyAnalyzer.processMessage(message, this.config);
-          }
+          await this.analysisLinker.indexMessage(message);
+          
+          // Process message for word frequency analysis if active
+          await this.wordFrequencyAnalyzer.processMessage(message, this.config);
         } else {
-          const channelType = isAnalysisChannel ? 'analysis' : (isDiscussionChannel ? 'discussion' : 'deals');
+          const channelType = isAnalysisChannel ? 'analysis' : 'discussion';
           Logger.debug(`Bot: Skipping ${channelType} channel message ${message.id} from non-manager ${message.author.tag}`);
         }
       } else if (!isGeneralChannel) {
@@ -500,11 +493,11 @@ class TradersMindBot {
     const statusCommand = await import('./commands/status');
     this.commands.set('status', statusCommand);
     
-    const createdealsCommand = await import('./commands/createdeals');
-    this.commands.set('createdeals', createdealsCommand);
+    const createbuttonsCommand = await import('./commands/createbuttons');
+    this.commands.set('createbuttons', createbuttonsCommand);
     
-    // Initialize createdeals command services
-    createdealsCommand.initializeServices(
+    // Initialize createbuttons command services
+    createbuttonsCommand.initializeServices(
       this.discussionChannelHandler,
       this.symbolDetector,
       this.ephemeralHandler

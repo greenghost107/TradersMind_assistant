@@ -10,8 +10,8 @@ const commands = [
     description: 'Show bot configuration and monitoring status'
   },
   {
-    name: 'createdeals',
-    description: 'Create interactive buttons for stock symbols from your recent message (Deals channel only)'
+    name: 'createbuttons',
+    description: 'Create interactive buttons for stock symbols from your recent message (Analysis channels only)'
   }
 ];
 

@@ -39,17 +39,17 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - The response includes a direct link to the most recent analysis message
 - **Works immediately** even for historical analysis from before bot startup
 
-### Deals Channel (DEALS_DISCUSSION_CHANNEL) - Optional Feature
-- **Independent Feature**: Completely separate from analysis and discussion channels
-- **Manager-Only Access**: Only managers can use the `/createdeals` command
+### Create Buttons Command (`/createbuttons`) - Analysis Channels
+- **Manager-Only Access**: Only managers can use the `/createbuttons` command
+- **Analysis Channel Integration**: Works in both LONG_ANALYSIS_CHANNEL and SHORT_ANALYSIS_CHANNEL
 - **Simple Workflow**: 
-  1. Manager posts symbols: `"QUBT / BKV / MSFT / VEEV 👀\n@everyone"`
-  2. Manager runs: `/createdeals`
+  1. Manager posts symbols in analysis channel: `"QUBT / BKV / MSFT / VEEV 👀"`
+  2. Manager runs: `/createbuttons`
   3. Bot creates interactive symbol buttons below the message
 - **Smart Symbol Parsing**: Handles various formats (spaced, slashed, comma-separated)
 - **Same Button System**: Uses identical button functionality as general notices channel
-- **Automatic Cleanup**: Deals buttons cleaned up with existing retention system
-- **No Impact**: Does not affect existing analysis or discussion channel behavior
+- **5-Second Auto-Deletion**: Command reply automatically deletes after 5 seconds
+- **Unified Workflow**: Integrates seamlessly with existing analysis channel ecosystem
 
 ## Features
 
@@ -177,8 +177,6 @@ To configure the bot, you need to get the Channel IDs for your Discord channels:
 - **Short Analysis Channel**: Where your short position analysis content is posted  
 - **Manager General Messages Channel**: Where the bot will monitor for top picks and stock symbols
 
-**Optional Channels:**
-- **Deals Channel**: Where managers can use `/createdeals` command (independent feature)
 
 **Manager User ID:**
 - Right-click on the manager's Discord profile → "Copy User ID"
@@ -199,9 +197,6 @@ LONG_ANALYSIS_CHANNEL=123456789012345678
 SHORT_ANALYSIS_CHANNEL=987654321098765432
 MANAGER_GENERAL_MESSAGES_CHANNEL=456789123456789123
 
-# Optional Channel IDs
-# Deals Channel - enables /createdeals command (optional)
-DEALS_DISCUSSION_CHANNEL=your_deals_channel_id_here
 
 # Manager Configuration (only messages from this user ID are processed)
 MANAGER_ID=your_manager_user_id_here
@@ -257,6 +252,7 @@ npm run dev:development
 
 ### Commands
 - `/status` - View bot configuration and monitoring status
+- `/createbuttons` - Create interactive symbol buttons from recent message (Analysis channels only, managers only)
 
 ## Architecture
 
