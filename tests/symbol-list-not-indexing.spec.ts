@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AnalysisLinker } from '../src/services/AnalysisLinker';
 
-test.describe('Symbol List Indexing Bug Fix', () => {
+test.describe('Symbol List Not Indexing Tests', () => {
   let analysisLinker: AnalysisLinker;
 
   test.beforeEach(() => {
@@ -256,6 +256,30 @@ test.describe('Symbol List Indexing Bug Fix', () => {
     await analysisLinker.indexMessage(botMessage);
     
     // Bot messages should be ignored completely
+    expect(analysisLinker.getTrackedSymbolsCount()).toBe(0);
+  });
+
+  test('should reject deals format message in analysis channel', async () => {
+    const mockMessage = {
+      id: 'test-msg-15',
+      author: { bot: false, id: 'user1', tag: 'TestUser#1234' },
+      content: 'PL / F / ATGE 👀',
+      createdAt: new Date(),
+      guildId: 'test-guild',
+      channel: { id: 'test-channel', isThread: () => false },
+      member: { displayName: 'TestUser' },
+      reference: null
+    } as any;
+
+    // This should NOT be indexed - deals format lacks analysis content
+    await analysisLinker.indexMessage(mockMessage);
+    
+    // Verify none of the symbols have analysis data
+    expect(analysisLinker.hasAnalysisFor('PL')).toBe(false);
+    expect(analysisLinker.hasAnalysisFor('F')).toBe(false);
+    expect(analysisLinker.hasAnalysisFor('ATGE')).toBe(false);
+    
+    // Verify no symbols are tracked
     expect(analysisLinker.getTrackedSymbolsCount()).toBe(0);
   });
 });
