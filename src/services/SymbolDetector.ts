@@ -2,16 +2,22 @@ import { StockSymbol } from '../types';
 import { SYMBOL_PATTERN, COMMON_WORDS, HEBREW_KEYWORDS } from '../config';
 import { Logger } from '../utils/Logger';
 import { TopPicksParser, TopPicksResult } from './TopPicksParser';
+import { SymbolAllowlist } from './SymbolAllowlist';
+import { TechnicalContextDetector } from './TechnicalContextDetector';
 import { Client, TextChannel } from 'discord.js';
 
 export class SymbolDetector {
   private topPicksParser: TopPicksParser;
+  private symbolAllowlist: SymbolAllowlist;
+  private technicalDetector: TechnicalContextDetector;
   private client: Client | undefined;
   private analysisChannels: string[] = [];
   private discussionChannels: string[] = [];
 
-  constructor(client?: Client, analysisChannels?: string[], discussionChannels?: string[]) {
+  constructor(client?: Client, analysisChannels?: string[], discussionChannels?: string[], symbolAllowlist?: SymbolAllowlist) {
     this.topPicksParser = new TopPicksParser();
+    this.symbolAllowlist = symbolAllowlist || new SymbolAllowlist();
+    this.technicalDetector = new TechnicalContextDetector();
     this.client = client;
     this.analysisChannels = analysisChannels || [];
     this.discussionChannels = discussionChannels || [];
@@ -59,7 +65,13 @@ export class SymbolDetector {
       
       if (this.isValidSymbol(symbol)) {
         const confidence = this.calculateConfidence(symbol, content, position);
-        symbols.push({ symbol, confidence, position, priority: 'regular' });
+        // Include symbols with reasonable confidence, or allowlist symbols with decent confidence
+        // But reject allowlist symbols if they're clearly in wrong context (very low confidence)
+        if (confidence >= 0.3 || (this.symbolAllowlist.isSymbolAllowed(symbol) && confidence >= 0.2)) {
+          symbols.push({ symbol, confidence, position, priority: 'regular' });
+        } else {
+          Logger.debug(`Symbol "${symbol}" rejected due to low confidence: ${confidence.toFixed(3)}`);
+        }
       } else if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
         // Collect rejected single letters for further analysis
         rejectedSingleLetters.push({ symbol, position });
@@ -143,7 +155,13 @@ export class SymbolDetector {
       
       if (this.isValidSymbol(symbol)) {
         const confidence = this.calculateConfidence(symbol, content, position);
-        symbols.push({ symbol, confidence, position, priority: 'regular' });
+        // Include symbols with reasonable confidence, or allowlist symbols with decent confidence
+        // But reject allowlist symbols if they're clearly in wrong context (very low confidence)
+        if (confidence >= 0.3 || (this.symbolAllowlist.isSymbolAllowed(symbol) && confidence >= 0.2)) {
+          symbols.push({ symbol, confidence, position, priority: 'regular' });
+        } else {
+          Logger.debug(`Symbol "${symbol}" rejected due to low confidence: ${confidence.toFixed(3)}`);
+        }
       } else if (symbol.length === 1 && /^[A-Z]$/.test(symbol)) {
         // Collect rejected single letters for further analysis
         rejectedSingleLetters.push({ symbol, position });
@@ -188,10 +206,7 @@ export class SymbolDetector {
   }
 
   private isValidSymbol(symbol: string): boolean {
-    if (COMMON_WORDS.has(symbol)) {
-      return false;
-    }
-
+    // Basic format validation
     if (symbol.length < 1 || symbol.length > 5) {
       return false;
     }
@@ -200,6 +215,22 @@ export class SymbolDetector {
       return false;
     }
 
+    // If symbol is in allowlist, it's automatically valid regardless of COMMON_WORDS
+    if (this.symbolAllowlist.isSymbolAllowed(symbol)) {
+      return true;
+    }
+
+    // Check against old COMMON_WORDS for backward compatibility with obvious non-symbols
+    // But exclude symbols that could be legitimate stocks (now handled by allowlist)
+    const filteredCommonWords = new Set([...COMMON_WORDS]);
+    // Remove potentially legitimate stock symbols from exclusion
+    ['WH', 'AU', 'IWM'].forEach(symbol => filteredCommonWords.delete(symbol));
+    
+    if (filteredCommonWords.has(symbol)) {
+      return false;
+    }
+
+    // For single letters, only allow A and I by default (context will handle others)
     const singleLetterWords = ['A', 'I'];
     if (symbol.length === 1 && !singleLetterWords.includes(symbol)) {
       return false;
@@ -210,6 +241,26 @@ export class SymbolDetector {
 
   private calculateConfidence(symbol: string, content: string, position: number): number {
     let confidence = 0.5;
+
+    // Check if symbol is in allowlist (major confidence boost)
+    if (this.symbolAllowlist.isSymbolAllowed(symbol)) {
+      confidence += 0.4;
+      Logger.debug(`Symbol "${symbol}" gets allowlist bonus`);
+    }
+
+    // Check for technical context penalty - but only if symbol is not strongly indicated
+    const technicalPenalty = this.technicalDetector.getTechnicalConfusionPenalty(symbol, content, position);
+    
+    // If we have strong symbol indicators (like $ prefix), ignore technical penalty
+    const hasStrongIndicators = this.technicalDetector.hasStrongSymbolIndicators(symbol, content, position);
+    if (!hasStrongIndicators) {
+      confidence -= technicalPenalty;
+      if (technicalPenalty > 0) {
+        Logger.debug(`Symbol "${symbol}" gets technical context penalty: ${technicalPenalty}`);
+      }
+    } else if (technicalPenalty > 0) {
+      Logger.debug(`Symbol "${symbol}" technical penalty ignored due to strong indicators`);
+    }
 
     // Check for $ or # prefix (may be captured in the symbol match or before the position)
     const beforeChar = position > 0 ? content[position - 1] || ' ' : ' ';
@@ -463,5 +514,19 @@ export class SymbolDetector {
 
     // Default to standard validation
     return this.isValidSymbol(symbol);
+  }
+
+  /**
+   * Get the symbol allowlist instance (for external services)
+   */
+  public getSymbolAllowlist(): SymbolAllowlist {
+    return this.symbolAllowlist;
+  }
+
+  /**
+   * Get the technical context detector instance (for external services)
+   */
+  public getTechnicalDetector(): TechnicalContextDetector {
+    return this.technicalDetector;
   }
 }

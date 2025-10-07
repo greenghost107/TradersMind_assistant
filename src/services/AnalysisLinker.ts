@@ -1,6 +1,7 @@
 import { Message } from 'discord.js';
 import { AnalysisData } from '../types';
 import { SymbolDetector } from './SymbolDetector';
+import { SymbolAllowlist } from './SymbolAllowlist';
 import { UrlExtractor } from './UrlExtractor';
 import { Logger } from '../utils/Logger';
 import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
@@ -10,11 +11,14 @@ export class AnalysisLinker {
   private analysisCache: Map<string, AnalysisData[]> = new Map();
   private latestAnalysisMap: Map<string, AnalysisData> = new Map();
   private symbolDetector: SymbolDetector;
+  private symbolAllowlist: SymbolAllowlist;
   private urlExtractor: UrlExtractor;
   private readonly MAX_CACHE_AGE_MS = DAYS_TO_SCRAPE * 24 * 60 * 60 * 1000;
+  private adminIds: Set<string> = new Set();
 
-  constructor() {
-    this.symbolDetector = new SymbolDetector();
+  constructor(symbolDetector?: SymbolDetector) {
+    this.symbolDetector = symbolDetector || new SymbolDetector();
+    this.symbolAllowlist = this.symbolDetector.getSymbolAllowlist();
     this.urlExtractor = new UrlExtractor();
     this.startCacheCleanup();
   }
@@ -44,6 +48,19 @@ export class AnalysisLinker {
 
   public async indexMessage(message: Message): Promise<void> {
     if (message.author.bot) return;
+
+    // Check if this is an admin message and extract symbols for allowlist
+    if (this.isAdminMessage(message)) {
+      const extractedSymbols = this.symbolAllowlist.extractSymbolsFromAdminMessage(
+        message.content, 
+        message.author.id, 
+        message.id
+      );
+      
+      if (extractedSymbols.length > 0) {
+        Logger.info(`Admin ${message.author.tag} added symbols to allowlist: ${extractedSymbols.join(', ')}`);
+      }
+    }
 
     // Thread filtering now handled at bot.js level before calling this method
 
@@ -387,5 +404,56 @@ export class AnalysisLinker {
 
   public getTrackedSymbolsCount(): number {
     return this.latestAnalysisMap.size;
+  }
+
+  /**
+   * Add an admin user ID who can modify the allowlist
+   */
+  public addAdmin(adminId: string): void {
+    this.adminIds.add(adminId);
+    Logger.info(`Added admin ID: ${adminId}`);
+  }
+
+  /**
+   * Remove an admin user ID
+   */
+  public removeAdmin(adminId: string): boolean {
+    const removed = this.adminIds.delete(adminId);
+    if (removed) {
+      Logger.info(`Removed admin ID: ${adminId}`);
+    }
+    return removed;
+  }
+
+  /**
+   * Check if a message is from an admin
+   */
+  private isAdminMessage(message: Message): boolean {
+    return this.adminIds.has(message.author.id);
+  }
+
+  /**
+   * Initialize admin IDs (typically called during bot startup)
+   */
+  public initializeAdmins(adminIds: string[]): void {
+    this.adminIds.clear();
+    for (const adminId of adminIds) {
+      this.adminIds.add(adminId);
+    }
+    Logger.info(`Initialized ${adminIds.length} admin IDs for allowlist management`);
+  }
+
+  /**
+   * Get the allowlist instance for external access
+   */
+  public getSymbolAllowlist(): SymbolAllowlist {
+    return this.symbolAllowlist;
+  }
+
+  /**
+   * Get current admin IDs
+   */
+  public getAdminIds(): string[] {
+    return Array.from(this.adminIds);
   }
 }
