@@ -29,50 +29,56 @@ export const data = new SlashCommandBuilder()
   .setDescription('Create interactive buttons for stock symbols from your recent message (Analysis channels only)');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  // Get bot configuration
-  const config = getBotConfig();
+  const startTime = Date.now();
+  Logger.info(`/createbuttons started by ${interaction.user.tag} in channel ${interaction.channel?.id}`);
   
-  if (!config) {
-    await interaction.reply({ 
-      content: '❌ Bot configuration error - please contact administrator', 
-      ephemeral: true 
-    });
-    return;
-  }
-
-  // Validate this command is used in analysis channels only
-  if (!interaction.channel?.id || !config.analysisChannels.includes(interaction.channel.id)) {
-    await interaction.reply({ 
-      content: '❌ This command only works in analysis channels', 
-      ephemeral: true 
-    });
-    return;
-  }
-
-  // Validate manager permissions
-  // Create a mock message object for permission checking
-  const mockMessage = {
-    author: interaction.user,
-    channel: interaction.channel,
-    id: 'mock-interaction-message'
-  } as any;
-
-  if (!discussionChannelHandler || !discussionChannelHandler.isManagerMessage(mockMessage, config)) {
-    await interaction.reply({ 
-      content: '❌ Only managers can use this command', 
-      ephemeral: true 
-    });
-    return;
-  }
-
-  // Send initial ephemeral response
-  await interaction.reply({ 
-    content: '⏳ Processing symbols...', 
-    ephemeral: true 
-  });
-
   try {
-    // Find manager's most recent message in deals channel
+    // Get bot configuration
+    const config = getBotConfig();
+    
+    if (!config) {
+      Logger.error('Bot configuration error in /createbuttons');
+      await interaction.reply({ 
+        content: '❌ Bot configuration error - please contact administrator', 
+        ephemeral: true 
+      });
+      return;
+    }
+
+    // Validate this command is used in analysis channels only
+    if (!interaction.channel?.id || !config.analysisChannels.includes(interaction.channel.id)) {
+      Logger.warn(`/createbuttons used in wrong channel: ${interaction.channel?.id} by ${interaction.user.tag}`);
+      await interaction.reply({ 
+        content: '❌ This command only works in analysis channels', 
+        ephemeral: true 
+      });
+      return;
+    }
+
+    // Validate manager permissions
+    // Create a mock message object for permission checking
+    const mockMessage = {
+      author: interaction.user,
+      channel: interaction.channel,
+      id: 'mock-interaction-message'
+    } as any;
+
+    if (!discussionChannelHandler || !discussionChannelHandler.isManagerMessage(mockMessage, config)) {
+      Logger.warn(`/createbuttons permission denied for user: ${interaction.user.tag}`);
+      await interaction.reply({ 
+        content: '❌ Only managers can use this command', 
+        ephemeral: true 
+      });
+      return;
+    }
+
+    // Send initial ephemeral response
+    await interaction.reply({ 
+      content: '⏳ Processing symbols...', 
+      ephemeral: true 
+    });
+
+    // Find manager's most recent message in analysis channel
     const channel = interaction.channel;
     if (!channel || !('messages' in channel)) {
       await interaction.editReply({ 
@@ -89,7 +95,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       msg.content.trim().length > 0
     );
 
+    Logger.debug(`Found ${managerMessages.size} manager messages in channel`);
+
     if (managerMessages.size === 0) {
+      Logger.warn(`No recent messages found for ${interaction.user.tag} in channel ${interaction.channel?.id}`);
       await interaction.editReply({ 
         content: '❌ No recent message found to create deals from' 
       });
@@ -101,8 +110,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     
     // Parse symbols from the message content
     const symbols = parseDealsSymbols(latestMessage.content);
+    Logger.debug(`Parsed ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}`);
     
     if (symbols.length === 0) {
+      Logger.warn(`No symbols found in message: "${latestMessage.content}"`);
       await interaction.editReply({ 
         content: '❌ No valid symbols found in your message' 
       });
@@ -111,6 +122,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     // Create symbol buttons using existing EphemeralHandler
     if (!ephemeralHandler) {
+      Logger.error('EphemeralHandler not initialized in /createbuttons');
       await interaction.editReply({ 
         content: '❌ Service initialization error - please contact administrator' 
       });
@@ -118,11 +130,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     await ephemeralHandler.createSymbolButtons(latestMessage, symbols);
+    Logger.debug('Symbol buttons created successfully');
     
     // Update ephemeral response with success message
     await interaction.editReply({ 
       content: `✅ Created symbol buttons for ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}` 
     });
+    
+    const duration = Date.now() - startTime;
+    Logger.info(`✅ /createbuttons completed for ${interaction.user.tag}: ${symbols.length} symbols in ${duration}ms`);
     
     // Preserve 5-second auto-deletion behavior
     setTimeout(async () => {
@@ -132,10 +148,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         // Ignore errors if reply was already deleted
       }
     }, 5000);
-      Logger.info(`✅ Created symbol buttons for ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}`);
 
   } catch (error) {
-    Logger.error('Error in /createbuttons command:', error);
+    const duration = Date.now() - startTime;
+    Logger.error(`❌ /createbuttons failed for ${interaction.user.tag} after ${duration}ms:`, error);
     
     try {
       await interaction.editReply({ 

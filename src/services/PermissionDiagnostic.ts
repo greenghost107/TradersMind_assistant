@@ -60,6 +60,9 @@ export class PermissionDiagnostic {
 
   private readonly REQUIRED_ANALYSIS_CHANNEL_PERMISSIONS: (keyof typeof PermissionsBitField.Flags)[] = [
     'ViewChannel',
+    'SendMessages',
+    'EmbedLinks',
+    'UseExternalEmojis',
     'ReadMessageHistory'
   ];
 
