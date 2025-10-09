@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   // Run bot integration tests for Playwright
-  testMatch: ['**/bot-shutdown-cleanup.spec.ts', '**/hebrew-button-flow.spec.ts', '**/createbuttons-command.spec.ts', '**/symbol-detection.spec.ts', '**/dynamic-symbol-allowlist.spec.ts'],
+  testMatch: ['**/bot-shutdown-cleanup.spec.ts', '**/hebrew-button-flow.spec.ts', '**/createbuttons-command.spec.ts', '**/symbol-detection.spec.ts', '**/dynamic-symbol-allowlist.spec.ts', '**/sofi-indexing-bug.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
