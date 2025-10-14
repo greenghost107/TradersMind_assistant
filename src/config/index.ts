@@ -76,7 +76,11 @@ export const COMMON_WORDS = new Set([
   // Financial indices and ETFs
   'SP', 'DOW', 'QQQ', 'SPY', 'VIX', 'GDX', 'TLT', 'DXY',
   // Technical trading terms
-  'WH'
+  'WH',
+  // Financial services/publications that are NOT stocks
+  'IBD', 'CNBC', 'NYSE', 'NASDAQ', 'SEC', 'FINRA', 'CFTC',
+  // Common financial service references
+  'ETF', 'REIT', 'IPO', 'SPO', 'SPAC'
 ]);
 
 // Hebrew stopwords - high-frequency generic words with little trading value
