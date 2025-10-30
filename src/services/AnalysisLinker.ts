@@ -118,21 +118,22 @@ export class AnalysisLinker {
         Logger.warn(`⚠️ POTENTIAL ISSUE: Indexing symbol ${symbol} from message ${message.id} that appears to be in thread (parentId: ${message.channel.parentId})`);
       }
       
+      this.addToCache(symbol, analysisData);
+      
       // Check if we already have analysis for this symbol and compare timestamps
       const existing = this.latestAnalysisMap.get(symbol);
       if (existing) {
         Logger.debug(`Symbol ${symbol} already has analysis: existing=${existing.messageId} (${existing.timestamp}), new=${message.id} (${message.createdAt})`);
         if (message.createdAt > existing.timestamp) {
-          Logger.debug(`NEW message ${message.id} is newer - will replace existing ${existing.messageId} for ${symbol}`);
+          this.latestAnalysisMap.set(symbol, analysisData);
+          Logger.debug(`NEW message ${message.id} is newer - replaced existing ${existing.messageId} for ${symbol}`);
         } else {
-          Logger.debug(`EXISTING message ${existing.messageId} is newer - will keep existing for ${symbol}`);
+          Logger.debug(`EXISTING message ${existing.messageId} is newer - kept existing for ${symbol}`);
         }
       } else {
+        this.latestAnalysisMap.set(symbol, analysisData);
         Logger.debug(`Symbol ${symbol} has no existing analysis - storing message ${message.id}`);
       }
-      
-      this.addToCache(symbol, analysisData);
-      this.latestAnalysisMap.set(symbol, analysisData);
     }
 
     Logger.info(`Indexed analysis for symbols: ${symbolStrings.join(', ')} from ${message.member?.displayName || message.author.tag || message.author.id}`);
