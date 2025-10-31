@@ -6,7 +6,7 @@ import { Logger } from '../utils/Logger';
 import { DiscordUrlGenerator } from '../utils/DiscordUrlGenerator';
 import { ThreadManager } from './ThreadManager';
 import { DiscussionChannelHandler } from './DiscussionChannelHandler';
-import { DAYS_TO_SCRAPE } from '../config';
+import { DAYS_TO_SCRAPE, HEBREW_KEYWORDS } from '../config';
 
 export class HistoricalScraper {
   private symbolDetector: SymbolDetector;
@@ -15,6 +15,7 @@ export class HistoricalScraper {
   private discussionChannelHandler: DiscussionChannelHandler;
   private config: BotConfig;
   private readonly REQUEST_DELAY_MS = 100;
+  private readonly RELEVANCE_THRESHOLD = 0.7; // Same threshold as AnalysisLinker
 
   constructor(config: BotConfig, client?: Client) {
     this.config = config;
@@ -207,6 +208,14 @@ export class HistoricalScraper {
         const extractedUrls = this.urlExtractor.extractUrlsFromMessage(message);
         
         
+        const relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
+        
+        // Apply relevance threshold filtering - same as AnalysisLinker
+        if (relevanceScore < this.RELEVANCE_THRESHOLD) {
+          Logger.debug(`❌ Historical scraper rejected message ${message.id}: relevance score ${relevanceScore.toFixed(3)} below threshold ${this.RELEVANCE_THRESHOLD}`);
+          continue;
+        }
+        
         const analysisData: AnalysisData = {
           messageId: message.id,
           channelId: message.channelId,
@@ -214,30 +223,55 @@ export class HistoricalScraper {
           content: message.content,
           symbols: symbolStrings,
           timestamp: message.createdAt,
-          relevanceScore: this.calculateRelevanceScore(message.content, symbols.length),
+          relevanceScore,
           messageUrl,
           chartUrls: extractedUrls.chartUrls,
           attachmentUrls: extractedUrls.attachmentUrls,
           hasCharts: extractedUrls.hasCharts
         };
 
+        Logger.debug(`✅ Historical scraper accepted message ${message.id}: relevance score ${relevanceScore.toFixed(3)}, symbols: ${symbolStrings.join(', ')}`);
+
         for (const symbol of symbolStrings) {
           const existing = analysisMap.get(symbol);
           
           if (!existing) {
             analysisMap.set(symbol, analysisData);
+            Logger.debug(`📝 Historical scraper: Setting initial analysis for ${symbol} to message ${message.id}`);
           } else {
-            const currentScore = this.calculateMessageAnalysisScore(message.content, analysisData);
-            const existingScore = this.calculateMessageAnalysisScore(existing.content, existing);
+            // Quality-first overwrite logic
+            const currentScore = relevanceScore;
+            const existingScore = existing.relevanceScore;
+            const scoreDifference = currentScore - existingScore;
             
-            if (currentScore > 0 && existingScore < 0) {
-              analysisMap.set(symbol, analysisData);
-            } else if (currentScore < 0 && existingScore > 0) {
-              // Keep existing
+            let shouldOverwrite = false;
+            let reason = '';
+            
+            // Primary decision: Quality-based comparison
+            if (scoreDifference > 0.1) {
+              // Significantly higher quality - overwrite
+              shouldOverwrite = true;
+              reason = `higher quality (${currentScore.toFixed(3)} vs ${existingScore.toFixed(3)})`;
+            } else if (scoreDifference < -0.1) {
+              // Significantly lower quality - keep existing
+              shouldOverwrite = false;
+              reason = `lower quality (${currentScore.toFixed(3)} vs ${existingScore.toFixed(3)})`;
             } else {
+              // Similar quality - use timestamp as tiebreaker
               if (message.createdAt > existing.timestamp) {
-                analysisMap.set(symbol, analysisData);
+                shouldOverwrite = true;
+                reason = `similar quality but newer timestamp`;
+              } else {
+                shouldOverwrite = false;
+                reason = `similar quality but older timestamp`;
               }
+            }
+            
+            if (shouldOverwrite) {
+              analysisMap.set(symbol, analysisData);
+              Logger.debug(`🔄 Historical scraper: ${symbol} overwritten - ${reason} (${existing.messageId} -> ${message.id})`);
+            } else {
+              Logger.debug(`⏸️ Historical scraper: ${symbol} kept existing - ${reason} (keeping ${existing.messageId}, rejecting ${message.id})`);
             }
           }
         }
@@ -293,9 +327,19 @@ export class HistoricalScraper {
   }
 
   private calculateRelevanceScore(content: string, symbolCount: number): number {
-    let score = 0.5;
+    let score = 0.3; // Lower base score to require actual analysis content
     
     const lowerContent = content.toLowerCase();
+    
+    // Check for symbol list patterns (major penalty)
+    if (this.isSymbolList(content)) {
+      Logger.debug(`📋 Symbol list pattern detected in historical scraper: "${content.slice(0, 100)}..."`);
+      return 0.1; // Very low score for obvious symbol lists
+    }
+    
+    // Check symbol density (symbol-to-content ratio)
+    const symbolDensityPenalty = this.calculateSymbolDensityPenalty(content, symbolCount);
+    score -= symbolDensityPenalty;
     
     const strongKeywords = ['analysis', 'target', 'price target', 'bullish', 'bearish', 'recommendation'];
     const mediumKeywords = ['chart', 'technical', 'support', 'resistance', 'breakout', 'trend'];
@@ -319,19 +363,113 @@ export class HistoricalScraper {
       }
     }
     
+    // Hebrew keyword support
+    for (const keyword of HEBREW_KEYWORDS.strong) {
+      if (content.includes(keyword)) {
+        score += 0.3;
+      }
+    }
+    
+    for (const keyword of HEBREW_KEYWORDS.medium) {
+      if (content.includes(keyword)) {
+        score += 0.2;
+      }
+    }
+    
+    for (const keyword of HEBREW_KEYWORDS.weak) {
+      if (content.includes(keyword)) {
+        score += 0.1;
+      }
+    }
+    
+    // Content length bonus (meaningful analysis should be longer)
     if (content.length > 200) {
       score += 0.1;
     }
+    if (content.length > 400) {
+      score += 0.1;
+    }
     
+    // Symbol count scoring (favor fewer symbols for focused analysis)
     if (symbolCount === 1) {
       score += 0.2;
     } else if (symbolCount <= 3) {
       score += 0.1;
+    } else if (symbolCount <= 5) {
+      // Neutral - no bonus or penalty
+    } else {
+      // Penalty for many symbols (likely lists or unfocused content)
+      score -= (symbolCount - 5) * 0.05;
     }
     
-    return Math.min(score, 1.0);
+    return Math.max(0, Math.min(score, 1.0));
   }
 
+  private isSymbolList(content: string): boolean {
+    // Detect common list patterns - same logic as AnalysisLinker
+    const listPatterns = [
+      /[A-Z]{1,5}\s*\/\s*[A-Z]{1,5}/, // "AAPL / TSLA"
+      /[A-Z]{1,5}\s*,\s*[A-Z]{1,5}/, // "AAPL, TSLA"
+      /[A-Z]{1,5}\s*\|\s*[A-Z]{1,5}/, // "AAPL | TSLA"
+    ];
+    
+    for (const pattern of listPatterns) {
+      const matches = content.match(new RegExp(pattern.source, 'g'));
+      if (matches && matches.length >= 3) { // Need at least 3 separator instances
+        const totalLength = content.length;
+        const symbolMatches = content.match(/\b[A-Z]{1,5}\b/g) || [];
+        
+        // Check if we have many symbols with separators
+        if (symbolMatches.length >= 5) {
+          // Check if symbols make up a large portion of the content
+          const symbolChars = symbolMatches.join('').length;
+          const separatorChars = matches.length * 3; // Approximate separator chars
+          const symbolAndSeparatorChars = symbolChars + separatorChars;
+          const ratio = symbolAndSeparatorChars / totalLength;
+          
+          if (ratio > 0.3) { // More than 30% of content is symbols and separators
+            return true;
+          }
+        }
+      }
+    }
+    
+    // Additional check: look for sequences of symbols with minimal text
+    const symbolMatches = content.match(/\b[A-Z]{1,5}\b/g) || [];
+    if (symbolMatches.length >= 6) {
+      const words = content.trim().split(/\s+/).filter(word => 
+        word.length > 0 && !/^[A-Z]{1,5}$/.test(word) && !/^[\/,\|]$/.test(word)
+      );
+      const nonSymbolWords = words.length;
+      const wordsPerSymbol = nonSymbolWords / symbolMatches.length;
+      
+      // If there are very few non-symbol words per symbol, likely a list
+      if (wordsPerSymbol < 1.5) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private calculateSymbolDensityPenalty(content: string, symbolCount: number): number {
+    if (symbolCount <= 3) return 0; // No penalty for small symbol counts
+    
+    const words = content.trim().split(/\s+/);
+    const totalWords = words.length;
+    const wordsPerSymbol = totalWords / symbolCount;
+    
+    // Heavy penalty for high symbol density (many symbols, few words)
+    if (wordsPerSymbol < 2) {
+      return 0.4; // Heavy penalty
+    } else if (wordsPerSymbol < 3) {
+      return 0.2; // Medium penalty  
+    } else if (wordsPerSymbol < 5) {
+      return 0.1; // Light penalty
+    }
+    
+    return 0; // No penalty for good word-to-symbol ratio
+  }
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
