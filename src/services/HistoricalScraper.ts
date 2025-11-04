@@ -207,8 +207,13 @@ export class HistoricalScraper {
         
         const extractedUrls = this.urlExtractor.extractUrlsFromMessage(message);
         
+        let relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
         
-        const relevanceScore = this.calculateRelevanceScore(message.content, symbols.length);
+        // Chart URL bonus (secondary enhancement) 
+        if (extractedUrls.hasCharts) {
+          relevanceScore += 0.2;
+          Logger.debug(`Historical scraper: Message ${message.id} has charts - boosting relevance score by 0.2`);
+        }
         
         // Apply relevance threshold filtering - same as AnalysisLinker
         if (relevanceScore < this.RELEVANCE_THRESHOLD) {
@@ -341,6 +346,12 @@ export class HistoricalScraper {
     const symbolDensityPenalty = this.calculateSymbolDensityPenalty(content, symbolCount);
     score -= symbolDensityPenalty;
     
+    // Check for first-line stock patterns (major bonus for focused analysis)
+    if (this.detectFirstLineStockPattern(content)) {
+      score += 0.3;
+      Logger.debug(`📈 Historical scraper: First-line stock pattern bonus applied: +0.3`);
+    }
+    
     const strongKeywords = ['analysis', 'target', 'price target', 'bullish', 'bearish', 'recommendation'];
     const mediumKeywords = ['chart', 'technical', 'support', 'resistance', 'breakout', 'trend'];
     const weakKeywords = ['buy', 'sell', 'hold', 'watch', 'trade'];
@@ -447,6 +458,30 @@ export class HistoricalScraper {
       if (wordsPerSymbol < 1.5) {
         return true;
       }
+    }
+    
+    return false;
+  }
+
+  private detectFirstLineStockPattern(content: string): boolean {
+    const firstLine = content.split('\n')[0] || '';
+    
+    // Pattern 1: "מניית" in first line with a symbol
+    if (firstLine.includes('מניית')) {
+      // Check if there's a symbol ($SYMBOL or SYMBOL format) in the same line
+      const symbolPattern = /(?:\$[A-Z]{1,5}|(?<![A-Za-z])[A-Z]{2,5}(?![A-Za-z]))/;
+      if (symbolPattern.test(firstLine)) {
+        Logger.debug(`Historical scraper: First-line מניית pattern detected: "${firstLine}"`);
+        return true;
+      }
+    }
+    
+    // Pattern 2: Company name in Hebrew + $SYMBOL format
+    // Look for Hebrew text followed by $SYMBOL
+    const hebrewWithSymbolPattern = /[\u0590-\u05FF]+.*\$[A-Z]{1,5}/;
+    if (hebrewWithSymbolPattern.test(firstLine)) {
+      Logger.debug(`Historical scraper: First-line Hebrew+symbol pattern detected: "${firstLine}"`);
+      return true;
     }
     
     return false;
