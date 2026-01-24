@@ -39,26 +39,13 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - The response includes a direct link to the most recent analysis message
 - **Works immediately** even for historical analysis from before bot startup
 
-### Create Buttons Command (`/createbuttons`) - Analysis Channels
-- **Manager-Only Access**: Only managers can use the `/createbuttons` command
-- **Analysis Channel Integration**: Works in both LONG_ANALYSIS_CHANNEL and SHORT_ANALYSIS_CHANNEL
-- **Simple Workflow**: 
-  1. Manager posts symbols in analysis channel: `"QUBT / BKV / MSFT / VEEV 👀"`
-  2. Manager runs: `/createbuttons`
-  3. Bot creates interactive symbol buttons below the message
-- **Smart Symbol Parsing**: Handles various formats (spaced, slashed, comma-separated)
-- **Same Button System**: Uses identical button functionality as general notices channel
-- **5-Second Auto-Deletion**: Command reply automatically deletes after 5 seconds
-- **Unified Workflow**: Integrates seamlessly with existing analysis channel ecosystem
-
 ## Features
 
 - **🚀 Startup Scraping**: Automatically loads last 7 days of analysis on bot startup
 - **⚡ Immediate Response**: Bot works from first startup with historical data
 - **📊 First-Line Symbol Extraction**: Only symbols in the first line of analysis messages are indexed
 - **🔗 Latest Analysis Tracking**: Maintains a map of the most recent analysis URL per symbol
-- **🧠 Intelligent Symbol Detection**: Dynamic allowlist architecture with context-aware detection
-- **🔤 Single Letter Stock Symbol Handling**: Advanced context-aware detection for single-letter symbols (F, C, X, etc.)
+- **🤖 Smart Symbol Detection**: Uses regex patterns with word filtering, supports emojis
 - **🌍 Hebrew & English Support**: Full Hebrew keyword matching for technical analysis (ברייקאאוט, פריצה, ATH, etc.)
 - **💬 Reply Message Indexing**: Reply messages get +0.2 relevance boost and are indexed independently
 - **🎯 Top Picks Parser**: Automatically extracts and prioritizes symbols from "טופ פיקס" / "top picks" sections
@@ -71,85 +58,6 @@ A Discord bot that monitors Discord channels for stock analysis and provides eas
 - **🔍 Permission Diagnostics**: Comprehensive startup and runtime permission monitoring
 - **⚙️ Environment-Based Configuration**: Simple setup using environment variables
 - **☁️ Deployment Ready**: No database needed, works on any free tier platform
-
-## 🧠 Dynamic Symbol Allowlist Architecture
-
-The bot uses an intelligent **dynamic allowlist system** that learns from admin analysis messages to distinguish between legitimate stock symbols and technical terms or geographic references.
-
-### 🎯 **Core Concept**
-
-Instead of static exclusion lists that break on edge cases, the system builds a **dynamic allowlist** of symbols that admins have explicitly analyzed, combined with **context-aware detection** to handle technical terms.
-
-### 🔧 **How It Works**
-
-1. **Admin Analysis Indexing**: When admins post analysis with `$SYMBOL` patterns, those symbols are added to the allowlist
-2. **Context-Aware Detection**: System distinguishes between `$WH` (stock symbol) and `52WH` (technical term)
-3. **Geographic Filtering**: Rejects symbols in geographic contexts like `AU market conditions`
-4. **Technical Term Recognition**: Identifies patterns like `50DMA`, `EMA20`, `RSI14` as technical indicators
-
-### ✅ **Intelligent Detection Examples**
-
-**Stock Symbol Detection:**
-- `$AU AngloGold Ashanti ✅` → AU added to allowlist by admin
-- `Looking at $AU for gold exposure` → AU detected (in allowlist + $ prefix)
-- `$IWM Russell 2000 📈` → IWM detected (admin analysis)
-
-**Technical Term Rejection:**
-- `Made new 52WH today` → WH rejected (technical context)
-- `Above 50DMA support` → DMA rejected (technical indicator)
-- `AU market conditions` → AU rejected (geographic context)
-
-**Context Override:**
-- If admin analyzes Wyndham Hotels (`$WH`), then `$WH` is detected
-- But `52WH` is still rejected as technical term
-
-### 🏗️ **Architecture Components**
-
-#### **SymbolAllowlist Service**
-- Tracks admin-approved symbols with timestamps
-- Automatically expires old entries (configurable)
-- Extracts symbols from admin `$SYMBOL` patterns
-
-#### **TechnicalContextDetector Service**  
-- Identifies technical analysis terms: `52WH`, `50DMA`, `EMA20`, `RSI14`
-- Detects geographic contexts: `AU market`, `US economy`
-- Provides confidence penalties for ambiguous symbols
-
-#### **Enhanced SymbolDetector**
-- Confidence-based scoring with allowlist bonuses
-- Strong indicator detection (`$` prefix overrides technical penalties)
-- Context-aware single letter handling
-
-### 🎖️ **Benefits Over Static Exclusions**
-
-- **Self-Learning**: Adapts to admin's actual trading vocabulary
-- **No Edge Cases**: WH allowed if admin analyzes it, rejected in `52WH` context
-- **Context Intelligence**: Understands the difference between symbols and technical terms
-- **Future-Proof**: No manual exclusion list maintenance required
-- **Backward Compatible**: Preserves all existing functionality
-
-### 📊 **Single Letter Symbol Handling**
-
-The enhanced system uses **context trust** and **allowlist validation** for single-letter symbols:
-
-✅ **Detected Examples:**
-- `$F target 15` - Strong prefix + allowlist
-- `MSFT/F/C 👀` - Context trust in deals format
-- `📈 long: AAPL, MSFT, F` - Top picks context
-- `פורד מוטורס $F✅` - Admin analysis with Hebrew
-
-❌ **Rejected Examples:**
-- `Federal Reserve` - F embedded in word
-- `52WH new high` - Technical term context
-- `AU market outlook` - Geographic context
-
-### 🔄 **Allowlist Lifecycle**
-
-1. **Admin Analysis** → `$SYMBOL` extracted → Added to allowlist
-2. **Symbol Detection** → Allowlist checked → Confidence boost applied
-3. **Context Validation** → Technical/geographic context → Penalty applied
-4. **Final Decision** → Combined confidence score → Accept/reject
-5. **Auto Cleanup** → Expired entries removed → Fresh allowlist maintained
 
 ## Setup
 
@@ -172,11 +80,10 @@ To configure the bot, you need to get the Channel IDs for your Discord channels:
 2. Select "Copy Channel ID" from the context menu
 3. The Channel ID will be copied to your clipboard (it's a long number like `123456789012345678`)
 
-**Required Channels:**
+**Channels you need:**
 - **Long Analysis Channel**: Where your long position analysis content is posted
 - **Short Analysis Channel**: Where your short position analysis content is posted  
 - **Manager General Messages Channel**: Where the bot will monitor for top picks and stock symbols
-
 
 **Manager User ID:**
 - Right-click on the manager's Discord profile → "Copy User ID"
@@ -192,11 +99,10 @@ Edit the `.env` file with your information:
 # Your Discord bot token
 DISCORD_TOKEN=your_discord_bot_token_here
 
-# Required Channel IDs (replace with your actual channel IDs)
+# Channel IDs (replace with your actual channel IDs)
 LONG_ANALYSIS_CHANNEL=123456789012345678
 SHORT_ANALYSIS_CHANNEL=987654321098765432
 MANAGER_GENERAL_MESSAGES_CHANNEL=456789123456789123
-
 
 # Manager Configuration (only messages from this user ID are processed)
 MANAGER_ID=your_manager_user_id_here
@@ -213,22 +119,8 @@ node register-status-command.js
 npm run build
 npm start
 
-# Production mode (all platforms including Windows):
-npm run start:production
-
 # Or for development:
 npm run dev
-```
-
-#### Windows Users
-The project includes `cross-env` for Windows compatibility. All environment variable scripts work on Windows, Mac, and Linux:
-
-```bash
-# These commands work on Windows:
-npm run start:production
-npm run start:development
-npm run dev:production
-npm run dev:development
 ```
 
 ## Usage
@@ -252,17 +144,14 @@ npm run dev:development
 
 ### Commands
 - `/status` - View bot configuration and monitoring status
-- `/createbuttons` - Create interactive symbol buttons from recent message (Analysis channels only, managers only)
 
 ## Architecture
 
 ### Services
 - **ChannelScanner**: Monitors general notices channel for top picks messages
-- **SymbolDetector**: Intelligent symbol detection with dynamic allowlist and context awareness
-- **SymbolAllowlist**: Tracks admin-approved symbols with automatic expiration
-- **TechnicalContextDetector**: Identifies technical terms and geographic contexts
+- **SymbolDetector**: Detects stock symbols using pattern matching (no 25-symbol limit)
 - **TopPicksParser**: Extracts symbols from "טופ פיקס" / "top picks" sections with priority
-- **AnalysisLinker**: Indexes analysis messages and manages admin symbol allowlist
+- **AnalysisLinker**: Indexes and links analysis messages to symbols with Hebrew keyword support
 - **EphemeralHandler**: Manages button interactions and ephemeral responses (splits >20 buttons)
 - **MessageRetention**: Handles immediate Hebrew update triggered cleanup
 - **HebrewUpdateDetector**: Detects Hebrew daily update patterns to trigger immediate message cleanup
@@ -279,7 +168,7 @@ npm run dev:development
 - **Ephemeral Interactions**: Private responses visible only to requesting user
 - **Hebrew Update Triggered Cleanup**: Immediate deletion of all bot messages when Hebrew daily updates are detected
 - **Hebrew Update Triggered Cleanup**: Bot messages automatically cleaned up when Hebrew daily updates are detected
-- **Intelligent Symbol Detection**: Dynamic allowlist with context-aware technical term recognition
+- **Smart Symbol Detection**: Pattern matching with confidence scoring and word filtering
 - **Hebrew Keyword Matching**: 40+ Hebrew technical terms (strong/medium/weak scoring)
 - **Reply Message Boost**: +0.2 relevance score for follow-up analysis
 - **Unlimited Symbol Parsing**: All top picks parsed before filtering (no 25-cap)
@@ -288,27 +177,13 @@ npm run dev:development
 
 ## Development
 
-### Available Scripts (Windows/Mac/Linux Compatible)
-
-**Development:**
 - `npm run dev` - Start in development mode with ts-node
-- `npm run dev:development` - Development mode with NODE_ENV=development
-- `npm run dev:production` - Development mode with NODE_ENV=production
-
-**Production:**
-- `npm start` - Start built application (default environment)
-- `npm run start:production` - Start with NODE_ENV=production
-- `npm run start:development` - Start with NODE_ENV=development
-
-**Build & Test:**
 - `npm run build` - Compile TypeScript to JavaScript
 - `npm run test` - Run Jest unit tests
 - `npm run test:playwright` - Run Playwright integration tests
 - `npm run test:all` - Run all tests
 - `npm run lint` - Run ESLint
 - `npm run typecheck` - Run TypeScript type checking
-
-> **Note:** All scripts use `cross-env` for cross-platform environment variable support, ensuring compatibility across Windows, Mac, and Linux.
 
 ### Testing
 
@@ -320,7 +195,6 @@ The project includes comprehensive test coverage using both Jest and Playwright:
 
 #### Integration Tests (Playwright)  
 - **Symbol Detection** - End-to-end symbol detection from message content
-- **Dynamic Symbol Allowlist** - Admin analysis indexing, context-aware detection, technical term filtering
 - **Top Picks Prioritization** - Parsing 25+ symbols, priority ordering, deduplication
 - **Hebrew Analysis Indexing** - Hebrew keyword matching, relevance scoring, reply boost
 - **Symbol List Filtering** - Rejection of ticker-only lists, density penalties
@@ -436,11 +310,6 @@ Monitors these essential permissions for bot functionality:
 - **Missing EmbedLinks**: Analysis previews won't display rich formatting
 - **SendMessages Required in Wrong Channel**: Bot only needs SendMessages in general channel, not analysis channels
 
-**Windows Users:**
-- **NODE_ENV errors**: Use `npm run start:production` instead of manual NODE_ENV commands
-- **Cross-platform scripts**: All npm scripts work on Windows thanks to `cross-env` package
-- **PowerShell vs CMD**: All npm scripts work in both PowerShell and Command Prompt
-
 The diagnostic system ensures you have complete visibility into permission issues without affecting bot performance or reliability.
 
 ## Deployment
@@ -508,7 +377,7 @@ If you don't have a GitHub repository:
 Use these exact settings:
 - **Name**: `tradersmind-discord-bot` (or your preferred name)
 - **Environment**: `Node`
-- **Region**: Choose closest to your users
+- **Region**: Choose closest to your fde
 - **Branch**: `main`
 - **Build Command**: `npm ci && npm run build`
 - **Start Command**: `npm start`
@@ -587,14 +456,7 @@ src/
 ├── bot.ts                 # Main entry point
 ├── config/                # Configuration and constants
 ├── services/              # Core business logic services
-│   ├── SymbolDetector.ts     # Enhanced symbol detection with allowlist
-│   ├── SymbolAllowlist.ts    # Admin-approved symbol tracking
-│   ├── TechnicalContextDetector.ts # Technical term and geographic context detection
-│   ├── AnalysisLinker.ts     # Analysis indexing with allowlist integration
-│   └── ...                   # Other services
 ├── commands/              # Slash command handlers
 ├── types/                 # TypeScript type definitions
-├── utils/                 # Utility functions and helpers
-└── tests/                 # Comprehensive test suite
-    └── dynamic-symbol-allowlist.spec.ts # 29 tests for new architecture
+└── utils/                 # Utility functions and helpers
 ```

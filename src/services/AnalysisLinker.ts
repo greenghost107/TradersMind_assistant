@@ -181,6 +181,20 @@ export class AnalysisLinker {
     return analysis ? this.isRecentEnough(analysis.timestamp) : false;
   }
 
+  /**
+   * Checks if a symbol has analysis from specific channels
+   * @param symbol The symbol to check
+   * @param channelIds Array of channel IDs to filter by
+   * @returns true if the symbol has recent analysis from any of the specified channels
+   */
+  public hasAnalysisFromChannels(symbol: string, channelIds: string[]): boolean {
+    const analysis = this.latestAnalysisMap.get(symbol);
+    if (!analysis || !this.isRecentEnough(analysis.timestamp)) {
+      return false;
+    }
+    return channelIds.includes(analysis.channelId);
+  }
+
   public getAvailableSymbols(): string[] {
     const availableSymbols: string[] = [];
     for (const [symbol, analysis] of this.latestAnalysisMap.entries()) {

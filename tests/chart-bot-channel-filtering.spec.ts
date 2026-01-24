@@ -248,7 +248,8 @@ https://chart.example.com/${symbol.toLowerCase()}.png`;
     createbuttonsCommand.initializeServices(
       discussionChannelHandler,
       symbolDetector,
-      ephemeralHandler
+      ephemeralHandler,
+      analysisLinker
     );
 
     console.log('🔧 Test setup completed');
@@ -532,11 +533,11 @@ https://chart.example.com/${symbol.toLowerCase()}.png`;
 
     await createbuttonsCommand.execute(interaction as any);
 
-    // Should have no buttons created (or error message about no valid symbols)
+    // Should have no buttons created (or error message about no matching channel analysis)
     const buttonSymbols = createSymbolButtonsCalls.flatMap(call => call.symbols.map(s => s.symbol));
 
     expect(buttonSymbols.length).toBe(0);
-    expect(interaction.replyContent).toContain('No valid symbols');
+    expect(interaction.replyContent).toContain('No symbols found with analysis from this channel group');
 
     console.log('✅ Correctly handled empty results');
   });

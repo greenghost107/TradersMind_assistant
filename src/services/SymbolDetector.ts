@@ -224,7 +224,8 @@ export class SymbolDetector {
     // But exclude symbols that could be legitimate stocks (now handled by allowlist)
     const filteredCommonWords = new Set([...COMMON_WORDS]);
     // Remove potentially legitimate stock symbols from exclusion
-    ['WH', 'AU', 'IWM'].forEach(symbol => filteredCommonWords.delete(symbol));
+    // SPY, QQQ, TLT are popular ETFs frequently used in trading analysis
+    ['WH', 'AU', 'IWM', 'SPY', 'QQQ', 'TLT', 'VIX', 'GDX', 'DXY'].forEach(symbol => filteredCommonWords.delete(symbol));
     
     if (filteredCommonWords.has(symbol)) {
       return false;

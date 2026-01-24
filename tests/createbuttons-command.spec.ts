@@ -245,7 +245,8 @@ test.describe('CreateButtons Command', () => {
     createbuttonsCommand.initializeServices(
       discussionChannelHandler,
       symbolDetector,
-      ephemeralHandler
+      ephemeralHandler,
+      analysisLinker
     );
   });
   
@@ -483,7 +484,8 @@ test.describe('CreateButtons Command', () => {
       createbuttonsCommand.initializeServices(
         discussionChannelHandler,
         symbolDetector,
-        null as any // This will cause the service initialization error
+        null as any, // This will cause the service initialization error
+        analysisLinker
       );
 
       // Act: Execute the command
@@ -493,12 +495,13 @@ test.describe('CreateButtons Command', () => {
       expect(interaction.replied).toBe(true);
       expect(interaction.replyContent).toContain('❌ Service initialization error - please contact administrator');
       expect(createSymbolButtonsCalls.length).toBe(0);
-      
+
       // Restore services for other tests
       createbuttonsCommand.initializeServices(
         discussionChannelHandler,
         symbolDetector,
-        originalEphemeralHandler
+        originalEphemeralHandler,
+        analysisLinker
       );
     });
   });

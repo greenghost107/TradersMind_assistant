@@ -12,16 +12,21 @@ import { Logger } from '../utils/Logger';
 let discussionChannelHandler: DiscussionChannelHandler;
 let symbolDetector: SymbolDetector;
 let ephemeralHandler: EphemeralHandler;
+let analysisLinker: AnalysisLinker;
 
 // Initialize services (called by bot during startup)
 export function initializeServices(
   dch: DiscussionChannelHandler,
   sd: SymbolDetector,
-  eh: EphemeralHandler
+  eh: EphemeralHandler,
+  al?: AnalysisLinker
 ) {
   discussionChannelHandler = dch;
   symbolDetector = sd;
   ephemeralHandler = eh;
+  if (al) {
+    analysisLinker = al;
+  }
 }
 
 export const data = new SlashCommandBuilder()
@@ -111,11 +116,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     // Parse symbols from the message content
     const symbols = parseDealsSymbols(latestMessage.content);
     Logger.debug(`Parsed ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}`);
-    
+
     if (symbols.length === 0) {
       Logger.warn(`No symbols found in message: "${latestMessage.content}"`);
-      await interaction.editReply({ 
-        content: '❌ No valid symbols found in your message' 
+      await interaction.editReply({
+        content: '❌ No valid symbols found in your message'
+      });
+      return;
+    }
+
+    // Filter symbols based on channel context (LONG vs SHORT)
+    const filteredSymbols = filterSymbolsByChannelContext(symbols, interaction.channel.id, config);
+    Logger.debug(`Filtered to ${filteredSymbols.length} symbols with analysis from relevant channels: ${filteredSymbols.map(s => s.symbol).join(', ')}`);
+
+    if (filteredSymbols.length === 0) {
+      Logger.warn(`No symbols with analysis from relevant channels`);
+      await interaction.editReply({
+        content: '❌ No symbols found with analysis from this channel group'
       });
       return;
     }
@@ -123,22 +140,22 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     // Create symbol buttons using existing EphemeralHandler
     if (!ephemeralHandler) {
       Logger.error('EphemeralHandler not initialized in /createbuttons');
-      await interaction.editReply({ 
-        content: '❌ Service initialization error - please contact administrator' 
+      await interaction.editReply({
+        content: '❌ Service initialization error - please contact administrator'
       });
       return;
     }
 
-    await ephemeralHandler.createSymbolButtons(latestMessage, symbols);
+    await ephemeralHandler.createSymbolButtons(latestMessage, filteredSymbols);
     Logger.debug('Symbol buttons created successfully');
-    
+
     // Update ephemeral response with success message
-    await interaction.editReply({ 
-      content: `✅ Created symbol buttons for ${symbols.length} symbols: ${symbols.map(s => s.symbol).join(', ')}` 
+    await interaction.editReply({
+      content: `✅ Created symbol buttons for ${filteredSymbols.length} symbols: ${filteredSymbols.map(s => s.symbol).join(', ')}`
     });
-    
+
     const duration = Date.now() - startTime;
-    Logger.info(`✅ /createbuttons completed for ${interaction.user.tag}: ${symbols.length} symbols in ${duration}ms`);
+    Logger.info(`✅ /createbuttons completed for ${interaction.user.tag}: ${filteredSymbols.length} symbols in ${duration}ms`);
     
     // Preserve 5-second auto-deletion behavior
     setTimeout(async () => {
@@ -161,6 +178,55 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       Logger.error('Error updating interaction response:', editError);
     }
   }
+}
+
+/**
+ * Filters symbols based on channel context (LONG vs SHORT)
+ * When /createbuttons is used in a LONG channel, only show symbols with analysis from LONG channels
+ * When used in a SHORT channel, only show symbols with analysis from SHORT channels
+ */
+function filterSymbolsByChannelContext(symbols: StockSymbol[], channelId: string, config: BotConfig): StockSymbol[] {
+  // If analysisLinker not available, return all symbols (fallback)
+  if (!analysisLinker) {
+    Logger.warn('AnalysisLinker not available for channel filtering - returning all symbols');
+    return symbols;
+  }
+
+  // Determine which channel group this command was used in
+  const isLongChannel = channelId === config.analysisChannels[0]; // LONG_ANALYSIS_CHANNEL is first
+  const isShortChannel = channelId === config.analysisChannels[1]; // SHORT_ANALYSIS_CHANNEL is second
+
+  if (!isLongChannel && !isShortChannel) {
+    Logger.warn(`/createbuttons used in unexpected channel: ${channelId}`);
+    return symbols;
+  }
+
+  // Get the relevant channel IDs for filtering
+  const relevantChannels: string[] = [];
+
+  if (isLongChannel) {
+    relevantChannels.push(config.analysisChannels[0]); // LONG_ANALYSIS_CHANNEL
+    // Add LONG_DISCUSSION_CHANNEL if it exists
+    if (config.discussionChannels.length > 0 && config.discussionChannels[0]) {
+      relevantChannels.push(config.discussionChannels[0]);
+    }
+    Logger.debug(`Filtering for LONG channels: ${relevantChannels.join(', ')}`);
+  } else if (isShortChannel) {
+    relevantChannels.push(config.analysisChannels[1]); // SHORT_ANALYSIS_CHANNEL
+    // Add SHORT_DISCUSSION_CHANNEL if it exists
+    if (config.discussionChannels.length > 1 && config.discussionChannels[1]) {
+      relevantChannels.push(config.discussionChannels[1]);
+    }
+    Logger.debug(`Filtering for SHORT channels: ${relevantChannels.join(', ')}`);
+  }
+
+  // Filter symbols to only those with analysis from relevant channels
+  const filtered = symbols.filter(symbol =>
+    analysisLinker.hasAnalysisFromChannels(symbol.symbol, relevantChannels)
+  );
+
+  Logger.debug(`Channel filtering: ${symbols.length} parsed -> ${filtered.length} with relevant analysis`);
+  return filtered;
 }
 
 /**

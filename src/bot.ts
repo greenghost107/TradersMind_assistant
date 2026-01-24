@@ -500,7 +500,8 @@ class TradersMindBot {
     createbuttonsCommand.initializeServices(
       this.discussionChannelHandler,
       this.symbolDetector,
-      this.ephemeralHandler
+      this.ephemeralHandler,
+      this.analysisLinker
     );
     
     Logger.info('Commands loaded');
