@@ -264,7 +264,22 @@ test.describe('CreateButtons Command', () => {
         mockManagerId,
         mockLongAnalysisChannelId
       );
-      
+
+      // Create mock analysis message for indexing (simulates production messageCreate handler)
+      const mockAnalysisMessage = {
+        id: 'manager-msg-123',
+        author: { bot: false, id: mockManagerId, tag: 'Manager#1234' },
+        content: '$QUBT / $BKV / $MSFT / $VEEV\nטכני analysis עם ברייקאאוט פריצה מעל מומנטום חזק relative strength ווליום גבוה',
+        createdAt: new Date(),
+        guildId: 'mock-guild-id',
+        channel: { id: mockLongAnalysisChannelId, isThread: () => false },
+        member: { displayName: 'Manager' },
+        reference: null
+      } as any;
+
+      // Index the message first (simulates production messageCreate handler)
+      await analysisLinker.indexMessage(mockAnalysisMessage);
+
       const mockMessages = new Map([['manager-msg-123', managerMessage]]);
       const interaction = new MockCommandInteraction(mockLongAnalysisChannelId, mockManagerId, mockMessages);
 
@@ -287,7 +302,22 @@ test.describe('CreateButtons Command', () => {
         mockManagerId,
         mockShortAnalysisChannelId
       );
-      
+
+      // Create mock analysis message for indexing (simulates production messageCreate handler)
+      const mockAnalysisMessage = {
+        id: 'manager-msg-456',
+        author: { bot: false, id: mockManagerId, tag: 'Manager#1234' },
+        content: '$TSLA / $NVDA / $AMD\nשורט אנליזה עם ברייקדאון חולשה יחסית relative weakness מומנטום שלילי טרנד יורד',
+        createdAt: new Date(),
+        guildId: 'mock-guild-id',
+        channel: { id: mockShortAnalysisChannelId, isThread: () => false },
+        member: { displayName: 'Manager' },
+        reference: null
+      } as any;
+
+      // Index the message first (simulates production messageCreate handler)
+      await analysisLinker.indexMessage(mockAnalysisMessage);
+
       const mockMessages = new Map([['manager-msg-456', managerMessage]]);
       const interaction = new MockCommandInteraction(mockShortAnalysisChannelId, mockManagerId, mockMessages);
 
@@ -315,14 +345,31 @@ test.describe('CreateButtons Command', () => {
       for (const testCase of testCases) {
         // Reset call tracking
         createSymbolButtonsCalls = [];
-        
+
+        const messageId = `manager-msg-${Date.now()}`;
         const managerMessage = new MockMessage(
-          `manager-msg-${Date.now()}`,
+          messageId,
           testCase.content,
           mockManagerId,
           mockLongAnalysisChannelId
         );
-        
+
+        // Create mock analysis message for indexing (simulates production messageCreate handler)
+        const symbolsWithPrefix = testCase.expected.map(s => `$${s}`).join(' / ');
+        const mockAnalysisMessage = {
+          id: messageId,
+          author: { bot: false, id: mockManagerId, tag: 'Manager#1234' },
+          content: `${symbolsWithPrefix}\nטכני analysis עם ברייקאאוט פריצה מעל מומנטום חזק relative strength ווליום גבוה`,
+          createdAt: new Date(),
+          guildId: 'mock-guild-id',
+          channel: { id: mockLongAnalysisChannelId, isThread: () => false },
+          member: { displayName: 'Manager' },
+          reference: null
+        } as any;
+
+        // Index the message first (simulates production messageCreate handler)
+        await analysisLinker.indexMessage(mockAnalysisMessage);
+
         const mockMessages = new Map([[managerMessage.id, managerMessage]]);
         const interaction = new MockCommandInteraction(mockLongAnalysisChannelId, mockManagerId, mockMessages);
 
@@ -403,7 +450,22 @@ test.describe('CreateButtons Command', () => {
         mockManagerId,
         mockLongAnalysisChannelId
       );
-      
+
+      // Create mock analysis message for indexing (simulates production messageCreate handler)
+      const mockAnalysisMessage = {
+        id: 'manager-msg-permission',
+        author: { bot: false, id: mockManagerId, tag: 'Manager#1234' },
+        content: '$AAPL / $MSFT\nטכני analysis עם ברייקאאוט פריצה מעל מומנטום חזק relative strength ווליום גבוה',
+        createdAt: new Date(),
+        guildId: 'mock-guild-id',
+        channel: { id: mockLongAnalysisChannelId, isThread: () => false },
+        member: { displayName: 'Manager' },
+        reference: null
+      } as any;
+
+      // Index the message first (simulates production messageCreate handler)
+      await analysisLinker.indexMessage(mockAnalysisMessage);
+
       const mockMessages = new Map([['manager-msg-permission', managerMessage]]);
       const interaction = new MockCommandInteraction(mockLongAnalysisChannelId, mockManagerId, mockMessages);
 
@@ -475,10 +537,25 @@ test.describe('CreateButtons Command', () => {
         mockManagerId,
         mockLongAnalysisChannelId
       );
-      
+
+      // Create mock analysis message for indexing (simulates production messageCreate handler)
+      const mockAnalysisMessage = {
+        id: 'manager-msg-service-error',
+        author: { bot: false, id: mockManagerId, tag: 'Manager#1234' },
+        content: '$AAPL / $MSFT\nטכני analysis עם ברייקאאוט פריצה מעל מומנטום חזק relative strength ווליום גבוה',
+        createdAt: new Date(),
+        guildId: 'mock-guild-id',
+        channel: { id: mockLongAnalysisChannelId, isThread: () => false },
+        member: { displayName: 'Manager' },
+        reference: null
+      } as any;
+
+      // Index the message first (simulates production messageCreate handler)
+      await analysisLinker.indexMessage(mockAnalysisMessage);
+
       const mockMessages = new Map([['manager-msg-service-error', managerMessage]]);
       const interaction = new MockCommandInteraction(mockLongAnalysisChannelId, mockManagerId, mockMessages);
-      
+
       // Store original ephemeral handler and set to null to simulate initialization error
       const originalEphemeralHandler = ephemeralHandler;
       createbuttonsCommand.initializeServices(
@@ -515,13 +592,28 @@ test.describe('CreateButtons Command', () => {
         mockManagerId,
         mockLongAnalysisChannelId
       );
-      
+
+      // Create mock analysis message for indexing (simulates production messageCreate handler)
+      const mockAnalysisMessage = {
+        id: 'manager-msg-autodelete',
+        author: { bot: false, id: mockManagerId, tag: 'Manager#1234' },
+        content: '$AAPL / $MSFT\nטכני analysis עם ברייקאאוט פריצה מעל מומנטום חזק relative strength ווליום גבוה',
+        createdAt: new Date(),
+        guildId: 'mock-guild-id',
+        channel: { id: mockLongAnalysisChannelId, isThread: () => false },
+        member: { displayName: 'Manager' },
+        reference: null
+      } as any;
+
+      // Index the message first (simulates production messageCreate handler)
+      await analysisLinker.indexMessage(mockAnalysisMessage);
+
       const mockMessages = new Map([['manager-msg-autodelete', managerMessage]]);
       const interaction = new MockCommandInteraction(mockLongAnalysisChannelId, mockManagerId, mockMessages);
 
       // Act: Execute the command and wait for auto-deletion
       await createbuttonsCommand.execute(interaction as any);
-      
+
       // Wait for the 5-second timeout plus a small buffer
       await new Promise(resolve => setTimeout(resolve, 5100));
 

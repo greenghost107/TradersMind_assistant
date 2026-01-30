@@ -293,14 +293,14 @@ function createMockAnalysisChannel(channelId: string, channelName: string) {
   return {
     id: channelId,
     name: channelName,
-    guild: { 
+    guild: {
       id: '999999999',
       roles: {
         everyone: {
           id: '999999999',
           permissions: {
-            has: (permission: any) => ['ViewChannel', 'ReadMessageHistory'].includes(permission.toString()),
-            toArray: () => ['ViewChannel', 'ReadMessageHistory']
+            has: (permission: any) => ['ViewChannel', 'ReadMessageHistory', 'SendMessages', 'EmbedLinks', 'UseExternalEmojis'].includes(permission.toString()),
+            toArray: () => ['ViewChannel', 'ReadMessageHistory', 'SendMessages', 'EmbedLinks', 'UseExternalEmojis']
           }
         }
       }
@@ -308,11 +308,13 @@ function createMockAnalysisChannel(channelId: string, channelName: string) {
     isTextBased: () => true,
     permissionsFor: (member: any) => ({
       has: (permission: any) => {
-        // Analysis channels: Bot has read permissions but NOT SendMessages
-        // Mock the PermissionsBitField.Flags check
+        // Analysis channels: Bot has all required permissions
         if (permission === 1024n || permission.toString() === '1024') return true; // ViewChannel
         if (permission === 65536n || permission.toString() === '65536') return true; // ReadMessageHistory
-        return false; // Deny all other permissions like SendMessages
+        if (permission === 2048n || permission.toString() === '2048') return true; // SendMessages
+        if (permission === 16384n || permission.toString() === '16384') return true; // EmbedLinks
+        if (permission === 262144n || permission.toString() === '262144') return true; // UseExternalEmojis
+        return false;
       }
     }),
     permissionOverwrites: {

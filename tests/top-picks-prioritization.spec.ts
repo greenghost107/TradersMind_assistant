@@ -144,20 +144,19 @@ Regular symbols: NVDA INTC AMD CRM ORCL ADBE NOW SNOW COIN SQ PYPL SHOP ROKU ZM 
     `;
 
     const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
-    
-    // Should return exactly 25 symbols (Discord button limit)
-    expect(symbols).toHaveLength(25);
-    
-    // All top picks should be included (24 long + 2 short = 26 total, but only 25 fit)
+
+    // No 25-symbol limit - all top picks are parsed (24 long + 2 short = 26 total)
+    // Button limit of 20 per message is handled by EphemeralHandler, not SymbolDetector
+    expect(symbols).toHaveLength(26);
+
+    // All top picks should be included (24 long + 2 short = 26 total)
     const topLongCount = symbols.filter(s => s.priority === 'top_long').length;
     const topShortCount = symbols.filter(s => s.priority === 'top_short').length;
-    const regularCount = symbols.filter(s => s.priority === 'regular').length;
-    
-    expect(topLongCount + topShortCount).toBeGreaterThanOrEqual(24); // Most top picks should fit
-    expect(topLongCount).toBeGreaterThan(20); // Most long picks should be included
-    expect(topShortCount).toBeGreaterThanOrEqual(0); // Some short picks may fit
-    
-    // Top picks should come first in the list
+
+    expect(topLongCount).toBe(24);
+    expect(topShortCount).toBe(2);
+
+    // Top long picks should come first, then short picks
     const firstTopPicks = symbols.slice(0, topLongCount + topShortCount);
     expect(firstTopPicks.every(s => s.priority !== 'regular')).toBe(true);
   });

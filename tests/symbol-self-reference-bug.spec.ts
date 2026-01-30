@@ -1,9 +1,10 @@
+import { test, expect } from '@playwright/test';
 import { AnalysisLinker } from '../src/services/AnalysisLinker';
 
-describe('Symbol Self-Reference Bug Tests', () => {
+test.describe('Symbol Self-Reference Bug Tests', () => {
   let analysisLinker: AnalysisLinker;
 
-  beforeEach(() => {
+  test.beforeEach(() => {
     analysisLinker = new AnalysisLinker();
   });
 
@@ -27,7 +28,7 @@ describe('Symbol Self-Reference Bug Tests', () => {
         reference: null
       } as any;
       priorAnalysisMessages.push(priorMessage);
-      
+
       // Index the prior analysis
       await analysisLinker.indexMessage(priorMessage);
     }
@@ -65,13 +66,13 @@ describe('Symbol Self-Reference Bug Tests', () => {
       if (latestAnalysis && latestAnalysis.length > 0) {
         const latestMessageId = latestAnalysis[0]!.messageId;
         const latestUrl = analysisLinker.getLatestAnalysisUrl(symbol);
-        
+
         // Check if the symbol now points to the symbol list message (self-reference bug)
         if (latestMessageId === 'symbol-list-bug-message') {
           bugDetected = true;
           selfReferencingSymbols.push(symbol);
         }
-        
+
         // Also check URL contains the symbol list message ID
         if (latestUrl && latestUrl.includes('symbol-list-bug-message')) {
           bugDetected = true;
@@ -86,12 +87,12 @@ describe('Symbol Self-Reference Bug Tests', () => {
     if (bugDetected) {
       console.log(`🐛 BUG DETECTED: ${selfReferencingSymbols.length} symbols point to the symbol list message instead of their prior analysis:`);
       console.log(`Self-referencing symbols: ${selfReferencingSymbols.join(', ')}`);
-      
+
       // This assertion will fail if the bug exists, confirming the issue
       expect(selfReferencingSymbols).toHaveLength(0);
     } else {
       console.log('✅ Bug NOT detected: Symbol list was properly rejected or symbols still point to prior analysis');
-      
+
       // Verify symbols still point to their prior analysis (expected behavior)
       for (const symbol of symbols) {
         const latestAnalysis = await analysisLinker.getLatestAnalysis(symbol, 1);
@@ -117,13 +118,13 @@ describe('Symbol Self-Reference Bug Tests', () => {
 
     // This should be rejected due to symbol list pattern detection
     await analysisLinker.indexMessage(symbolListMessage);
-    
+
     // Verify no symbols were indexed from this message
     const symbols = ['STX', 'RMBS', 'W', 'WGS', 'ZS', 'SYM', 'TMDX', 'JPM', 'GS', 'MDB', 'IBKR', 'MMM'];
     for (const symbol of symbols) {
       expect(analysisLinker.hasAnalysisFor(symbol)).toBe(false);
     }
-    
+
     expect(analysisLinker.getTrackedSymbolsCount()).toBe(0);
   });
 
@@ -159,9 +160,9 @@ describe('Symbol Self-Reference Bug Tests', () => {
   test('should reproduce bug with mixed prior analysis and symbol list chronologically', async () => {
     // Create a more realistic timeline where some symbols have recent analysis
     // and the symbol list message is the newest
-    
+
     const baseTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
-    
+
     // Some symbols have recent analysis (1 hour ago)
     const recentSymbols = ['STX', 'RMBS', 'W'];
     for (let i = 0; i < recentSymbols.length; i++) {
@@ -176,7 +177,7 @@ describe('Symbol Self-Reference Bug Tests', () => {
         member: { displayName: 'Analyst' },
         reference: null
       } as any;
-      
+
       await analysisLinker.indexMessage(recentMessage);
     }
 
@@ -194,7 +195,7 @@ describe('Symbol Self-Reference Bug Tests', () => {
         member: { displayName: 'Analyst2' },
         reference: null
       } as any;
-      
+
       await analysisLinker.indexMessage(olderMessage);
     }
 
@@ -215,7 +216,7 @@ describe('Symbol Self-Reference Bug Tests', () => {
     // Check if the newest symbol list message overwrote all prior analysis
     const allSymbols = [...recentSymbols, ...olderSymbols];
     let bugOccurred = false;
-    
+
     for (const symbol of allSymbols) {
       const latestAnalysis = await analysisLinker.getLatestAnalysis(symbol, 1);
       if (latestAnalysis && latestAnalysis.length > 0) {

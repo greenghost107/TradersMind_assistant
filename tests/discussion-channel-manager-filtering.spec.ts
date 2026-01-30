@@ -1,11 +1,12 @@
+import { test, expect } from '@playwright/test';
 import { DiscussionChannelHandler } from '../src/services/DiscussionChannelHandler';
 import { BotConfig } from '../src/types';
 
-describe('DiscussionChannelHandler', () => {
+test.describe('DiscussionChannelHandler', () => {
   let handler: DiscussionChannelHandler;
   let mockConfig: BotConfig;
 
-  beforeEach(() => {
+  test.beforeEach(() => {
     handler = new DiscussionChannelHandler();
     mockConfig = {
       analysisChannels: ['analysis-1', 'analysis-2'],
@@ -16,8 +17,8 @@ describe('DiscussionChannelHandler', () => {
     };
   });
 
-  describe('isDiscussionChannel', () => {
-    it('should return true for configured discussion channels', () => {
+  test.describe('isDiscussionChannel', () => {
+    test('should return true for configured discussion channels', () => {
       const mockMessage = {
         channel: { id: 'discussion-1' }
       } as any;
@@ -25,7 +26,7 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.isDiscussionChannel(mockMessage, mockConfig)).toBe(true);
     });
 
-    it('should return false for non-discussion channels', () => {
+    test('should return false for non-discussion channels', () => {
       const mockMessage = {
         channel: { id: 'analysis-1' }
       } as any;
@@ -34,10 +35,10 @@ describe('DiscussionChannelHandler', () => {
     });
   });
 
-  describe('isManagerMessage', () => {
-    it('should return true when user ID matches manager ID', () => {
+  test.describe('isManagerMessage', () => {
+    test('should return true when user ID matches manager ID', () => {
       const mockMessage = {
-        author: { 
+        author: {
           id: 'manager-user-id-12345',
           tag: 'TestUser#1234'
         }
@@ -46,9 +47,9 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.isManagerMessage(mockMessage, mockConfig)).toBe(true);
     });
 
-    it('should return false when user ID does not match manager ID', () => {
+    test('should return false when user ID does not match manager ID', () => {
       const mockMessage = {
-        author: { 
+        author: {
           id: 'different-user-id-67890',
           tag: 'TestUser#1234'
         }
@@ -57,14 +58,14 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.isManagerMessage(mockMessage, mockConfig)).toBe(false);
     });
 
-    it('should return false when no manager ID is configured', () => {
+    test('should return false when no manager ID is configured', () => {
       const configWithoutManagerId: BotConfig = {
         ...mockConfig
       };
       delete (configWithoutManagerId as any).managerId;
-      
+
       const mockMessage = {
-        author: { 
+        author: {
           id: 'any-user-id',
           tag: 'TestUser#1234'
         }
@@ -73,9 +74,9 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.isManagerMessage(mockMessage, configWithoutManagerId)).toBe(false);
     });
 
-    it('should work for DM messages when ID matches', () => {
+    test('should work for DM messages when ID matches', () => {
       const mockMessage = {
-        author: { 
+        author: {
           id: 'manager-user-id-12345',
           tag: 'TestUser#1234'
         }
@@ -84,14 +85,14 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.isManagerMessage(mockMessage, mockConfig)).toBe(true);
     });
 
-    it('should return false when manager ID is empty string', () => {
+    test('should return false when manager ID is empty string', () => {
       const configWithEmptyId: BotConfig = {
         ...mockConfig,
         managerId: ''
       };
 
       const mockMessage = {
-        author: { 
+        author: {
           id: 'any-user-id',
           tag: 'TestUser#1234'
         }
@@ -101,12 +102,12 @@ describe('DiscussionChannelHandler', () => {
     });
   });
 
-  describe('shouldProcessDiscussionMessage', () => {
-    it('should process manager messages in discussion channels', () => {
+  test.describe('shouldProcessDiscussionMessage', () => {
+    test('should process manager messages in discussion channels', () => {
       const mockMessage = {
         channel: { id: 'discussion-1' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'Manager#1234',
           id: 'manager-user-id-12345'
         }
@@ -115,11 +116,11 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.shouldProcessDiscussionMessage(mockMessage, mockConfig)).toBe(true);
     });
 
-    it('should not process non-manager messages in discussion channels', () => {
+    test('should not process non-manager messages in discussion channels', () => {
       const mockMessage = {
         channel: { id: 'discussion-1' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'User#1234',
           id: 'different-user-id-67890'
         }
@@ -128,11 +129,11 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.shouldProcessDiscussionMessage(mockMessage, mockConfig)).toBe(false);
     });
 
-    it('should not process messages from non-discussion channels', () => {
+    test('should not process messages from non-discussion channels', () => {
       const mockMessage = {
         channel: { id: 'analysis-1' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'Manager#1234',
           id: 'manager-user-id-12345'
         }
@@ -141,11 +142,11 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.shouldProcessDiscussionMessage(mockMessage, mockConfig)).toBe(false);
     });
 
-    it('should not process bot messages', () => {
+    test('should not process bot messages', () => {
       const mockMessage = {
         channel: { id: 'discussion-1' },
-        author: { 
-          bot: true, 
+        author: {
+          bot: true,
           tag: 'Bot#0001',
           id: 'manager-user-id-12345'
         }
@@ -155,13 +156,13 @@ describe('DiscussionChannelHandler', () => {
     });
   });
 
-  describe('getConfiguredManagerId', () => {
-    it('should return configured manager ID', () => {
+  test.describe('getConfiguredManagerId', () => {
+    test('should return configured manager ID', () => {
       const managerId = handler.getConfiguredManagerId(mockConfig);
       expect(managerId).toBe('manager-user-id-12345');
     });
 
-    it('should return null when no manager ID configured', () => {
+    test('should return null when no manager ID configured', () => {
       const configWithoutId: BotConfig = {
         ...mockConfig
       };
@@ -172,12 +173,12 @@ describe('DiscussionChannelHandler', () => {
     });
   });
 
-  describe('Edge cases', () => {
-    it('should handle multiple discussion channels', () => {
+  test.describe('Edge cases', () => {
+    test('should handle multiple discussion channels', () => {
       const message1 = {
         channel: { id: 'discussion-1' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'Manager#1234',
           id: 'manager-user-id-12345'
         }
@@ -185,8 +186,8 @@ describe('DiscussionChannelHandler', () => {
 
       const message2 = {
         channel: { id: 'discussion-2' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'Manager#1234',
           id: 'manager-user-id-12345'
         }
@@ -196,11 +197,11 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.shouldProcessDiscussionMessage(message2, mockConfig)).toBe(true);
     });
 
-    it('should be case-sensitive for user IDs', () => {
+    test('should be case-sensitive for user IDs', () => {
       const mockMessage = {
         channel: { id: 'discussion-1' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'User#1234',
           id: 'MANAGER-USER-ID-12345' // uppercase version
         }
@@ -210,7 +211,7 @@ describe('DiscussionChannelHandler', () => {
       expect(handler.shouldProcessDiscussionMessage(mockMessage, mockConfig)).toBe(false);
     });
 
-    it('should handle empty discussion channels array', () => {
+    test('should handle empty discussion channels array', () => {
       const configWithoutDiscussion: BotConfig = {
         ...mockConfig,
         discussionChannels: []
@@ -218,8 +219,8 @@ describe('DiscussionChannelHandler', () => {
 
       const mockMessage = {
         channel: { id: 'some-channel' },
-        author: { 
-          bot: false, 
+        author: {
+          bot: false,
           tag: 'Manager#1234',
           id: 'manager-user-id-12345'
         }

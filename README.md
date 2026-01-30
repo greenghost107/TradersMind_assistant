@@ -179,21 +179,19 @@ npm run dev
 
 - `npm run dev` - Start in development mode with ts-node
 - `npm run build` - Compile TypeScript to JavaScript
-- `npm run test` - Run Jest unit tests
-- `npm run test:playwright` - Run Playwright integration tests
-- `npm run test:all` - Run all tests
+- `npm run test` - Run all Playwright tests
 - `npm run lint` - Run ESLint
 - `npm run typecheck` - Run TypeScript type checking
 
 ### Testing
 
-The project includes comprehensive test coverage using both Jest and Playwright:
+The project uses Playwright for all tests (unit and integration), located in `tests/`:
 
-#### Unit Tests (Jest)
+#### Unit Tests
 - **SymbolDetector tests** - Symbol detection and validation logic
-- Located in `src/__tests__/`
+- **DiscussionChannelHandler tests** - Manager filtering and channel handling
 
-#### Integration Tests (Playwright)  
+#### Integration Tests
 - **Symbol Detection** - End-to-end symbol detection from message content
 - **Top Picks Prioritization** - Parsing 25+ symbols, priority ordering, deduplication
 - **Hebrew Analysis Indexing** - Hebrew keyword matching, relevance scoring, reply boost
@@ -201,18 +199,10 @@ The project includes comprehensive test coverage using both Jest and Playwright:
 - **Analysis Linking** - URL generation and latest analysis tracking
 - **Ephemeral Handler** - Button creation and interaction handling
 - **Bot Integration** - Complete workflow from analysis to user interaction
-- Located in `tests/`
 
 Run tests with:
 ```bash
-# Unit tests only
 npm run test
-
-# Integration tests only  
-npm run test:playwright
-
-# All tests
-npm run test:all
 ```
 
 ## 🔍 Permission Diagnostic System

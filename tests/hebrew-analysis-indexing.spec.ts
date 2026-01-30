@@ -260,10 +260,12 @@ test.describe('Hebrew Analysis Message Indexing', () => {
   });
 
   test('should reject Hebrew messages without technical content', async () => {
+    // Message with just a symbol and generic Hebrew text (no technical keywords)
+    // "טובה" means "good" but is not a technical keyword
     const mockMessage = {
       id: 'test-hebrew-reject-1',
       author: { bot: false, id: 'user1', tag: 'TestUser#1234' },
-      content: '$AAPL\nמניה טובה',
+      content: '$AAPL\nטובה',
       createdAt: new Date(),
       guildId: 'test-guild',
       channel: { id: 'test-channel', isThread: () => false },
@@ -272,7 +274,8 @@ test.describe('Hebrew Analysis Message Indexing', () => {
     } as any;
 
     await analysisLinker.indexMessage(mockMessage);
-    
+
+    // Should be rejected due to low relevance score (no technical keywords)
     expect(analysisLinker.hasAnalysisFor('AAPL')).toBe(false);
   });
 

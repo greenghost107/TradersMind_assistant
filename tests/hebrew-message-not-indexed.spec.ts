@@ -199,8 +199,42 @@ test.describe('Hebrew Message Not Indexed Tests', () => {
     } as any;
 
     await analysisLinker.indexMessage(botMessage);
-    
+
     // Bot messages should be ignored completely
     expect(analysisLinker.getTrackedSymbolsCount()).toBe(0);
+  });
+
+  test('should index Hebrew short hedge analysis with QQQ symbol in first line', async () => {
+    const mockMessage = {
+      id: 'test-hebrew-short-hedge-qqq',
+      author: { bot: false, id: 'user1', tag: 'TestUser#1234' },
+      content: `נאסדק 100 $QQQ
+לוקח שורט על האינדקס כ-Hedge ללונגים כ-10% גודל פוזיציה.
+שורטים ברגיל ועל מניות אני לא עושה בשום דבר שנסחר מעל ה-200DMA.
+💡 כאן זה כסוג של גידור כנגד ה-AVWAP ATH + ה-50DMA ששברה היום.
+בנוסף תבנית ה-VCP פה קיבלה ברקס והאינדקס הזה הוא בין הלגארדס לשנה.
+אשמח לצאת בסטופ ושנמריא מעלה.`,
+      createdAt: new Date(),
+      guildId: 'test-guild',
+      channel: { id: 'test-channel', isThread: () => false },
+      member: { displayName: 'TestUser' },
+      reference: null
+    } as any;
+
+    // This SHOULD be indexed:
+    // - $QQQ symbol is in the first line
+    // - Substantial Hebrew technical content (200DMA, 50DMA, ATH, VCP, AVWAP)
+    // - Hebrew technical terms: שורט (short), גידור (hedging)
+    await analysisLinker.indexMessage(mockMessage);
+
+    // Verify QQQ has analysis data
+    expect(analysisLinker.hasAnalysisFor('QQQ')).toBe(true);
+
+    // Verify symbol is tracked
+    expect(analysisLinker.getTrackedSymbolsCount()).toBe(1);
+
+    const analysis = await analysisLinker.getLatestAnalysis('QQQ', 1);
+    expect(analysis).toHaveLength(1);
+    expect(analysis[0]?.relevanceScore).toBeGreaterThanOrEqual(0.7);
   });
 });

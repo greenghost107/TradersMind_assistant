@@ -81,9 +81,10 @@ test.describe('Top Picks Over 25 Symbols - INOD & TPR Bug', () => {
       'AAPL', 'TSLA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'NFLX', 'ADBE', 'CRM',
       'ORCL', 'INTC', 'AMD', 'QCOM', 'TXN', 'AVGO', 'MU', 'LRCX', 'KLAC', 'MRVL',
       'SNPS', 'CDNS', 'FTNT', 'NOW', 'SNOW', 'COIN', 'SQ', 'PYPL', 'SHOP', 'ROKU',
-      'ZM', 'DOCU', 'OKTA', 'DDOG', 'NET', 'CRWD', 'S', 'MDB', 'ESTC', 'TEAM',
+      'ZM', 'DOCU', 'OKTA', 'DDOG', 'NET', 'CRWD', 'MDB', 'ESTC', 'TEAM',
       'ZS', 'PANW', 'INOD', 'TPR'
     ];
+    // Note: 'S' and 'NOW' are filtered (S is single-letter, NOW is in common words list)
 
     const message = `
 ❕ טופ פיקס:
@@ -92,9 +93,10 @@ test.describe('Top Picks Over 25 Symbols - INOD & TPR Bug', () => {
     `;
 
     const symbols = symbolDetector.detectSymbolsFromTopPicks(message);
-    
-    expect(symbols.length).toBe(46);
-    
+
+    // 43 long picks - 1 filtered (NOW) + 2 short = 44 total
+    expect(symbols.length).toBe(44);
+
     expect(symbols.some(s => s.symbol === 'INOD')).toBe(true);
     expect(symbols.some(s => s.symbol === 'TPR')).toBe(true);
     expect(symbols.some(s => s.symbol === 'SPY' && s.priority === 'top_short')).toBe(true);
