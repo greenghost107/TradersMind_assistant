@@ -492,7 +492,10 @@ class TradersMindBot {
   private async loadCommands(): Promise<void> {
     const statusCommand = await import('./commands/status');
     this.commands.set('status', statusCommand);
-    
+
+    // Initialize status command services
+    statusCommand.initializeServices(this.discussionChannelHandler);
+
     const createbuttonsCommand = await import('./commands/createbuttons');
     this.commands.set('createbuttons', createbuttonsCommand);
     

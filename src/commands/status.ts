@@ -1,6 +1,16 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, Colors } from 'discord.js';
 import { getBotConfig, ENV } from '../config';
 import { MessageRetention } from '../services/MessageRetention';
+import { DiscussionChannelHandler } from '../services/DiscussionChannelHandler';
+import { Logger } from '../utils/Logger';
+
+// Service instances - will be initialized by the bot
+let discussionChannelHandler: DiscussionChannelHandler | null = null;
+
+// Initialize services (called by bot during startup)
+export function initializeServices(dch: DiscussionChannelHandler) {
+  discussionChannelHandler = dch;
+}
 
 export const data = new SlashCommandBuilder()
   .setName('status')
@@ -16,7 +26,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   const config = getBotConfig();
-  
+
+  // Permission check - manager only
+  const mockMessage = {
+    author: interaction.user,
+    channel: interaction.channel,
+    id: 'mock-interaction-message'
+  } as any;
+
+  if (!discussionChannelHandler || !discussionChannelHandler.isManagerMessage(mockMessage, config)) {
+    Logger.warn(`/status permission denied for user: ${interaction.user.tag}`);
+    await interaction.reply({
+      content: '❌ Only managers can use this command',
+      ephemeral: true
+    });
+    return;
+  }
+
   if (!config) {
     const embed = new EmbedBuilder()
       .setTitle('❌ Bot Not Configured')
