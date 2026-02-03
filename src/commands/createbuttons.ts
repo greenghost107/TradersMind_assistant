@@ -5,7 +5,7 @@ import { SymbolDetector } from '../services/SymbolDetector';
 import { EphemeralHandler } from '../services/EphemeralHandler';
 import { AnalysisLinker } from '../services/AnalysisLinker';
 import { MessageRetention } from '../services/MessageRetention';
-import { StockSymbol } from '../types';
+import { StockSymbol, BotConfig } from '../types';
 import { Logger } from '../utils/Logger';
 
 // Service instances - will be initialized by the bot
@@ -205,14 +205,14 @@ function filterSymbolsByChannelContext(symbols: StockSymbol[], channelId: string
   const relevantChannels: string[] = [];
 
   if (isLongChannel) {
-    relevantChannels.push(config.analysisChannels[0]); // LONG_ANALYSIS_CHANNEL
+    relevantChannels.push(config.analysisChannels[0]!); // LONG_ANALYSIS_CHANNEL
     // Add LONG_DISCUSSION_CHANNEL if it exists
     if (config.discussionChannels.length > 0 && config.discussionChannels[0]) {
       relevantChannels.push(config.discussionChannels[0]);
     }
     Logger.debug(`Filtering for LONG channels: ${relevantChannels.join(', ')}`);
   } else if (isShortChannel) {
-    relevantChannels.push(config.analysisChannels[1]); // SHORT_ANALYSIS_CHANNEL
+    relevantChannels.push(config.analysisChannels[1]!); // SHORT_ANALYSIS_CHANNEL
     // Add SHORT_DISCUSSION_CHANNEL if it exists
     if (config.discussionChannels.length > 1 && config.discussionChannels[1]) {
       relevantChannels.push(config.discussionChannels[1]);

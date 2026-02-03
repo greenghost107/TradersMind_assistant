@@ -34,7 +34,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     id: 'mock-interaction-message'
   } as any;
 
-  if (!discussionChannelHandler || !discussionChannelHandler.isManagerMessage(mockMessage, config)) {
+  if (!config || !discussionChannelHandler || !discussionChannelHandler.isManagerMessage(mockMessage, config)) {
     Logger.warn(`/status permission denied for user: ${interaction.user.tag}`);
     await interaction.reply({
       content: '❌ Only managers can use this command',
